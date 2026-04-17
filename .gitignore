@@ -1,0 +1,4 @@
+.env
+# JSON files except vercel config
+google-analytics-credentials.json
+!vercel.json
