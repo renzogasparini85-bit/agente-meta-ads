@@ -1,4 +1,26 @@
 .env
-# JSON files except vercel config
+*.env
 google-analytics-credentials.json
 !vercel.json
+.vercel
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+.claude/
+creativos/
+estrategias/
+estrategias /
+*.mp4
+*.zip
+*.rtf
+*.docx
+generar_creativo.py
+generar_placas.py
+pyproject.toml
+landing-*.html
+ab-test-tracker.html
+auditoria-*.html
+briefs-*.md
+manual-de-marca-*.md
+BRIEF_*.md
