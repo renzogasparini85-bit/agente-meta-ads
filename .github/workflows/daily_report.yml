@@ -1,0 +1,15 @@
+name: Daily Meta Ads Report
+
+on:
+  schedule:
+    - cron: '0 12 * * *'  # 09:00 Argentina (UTC-3)
+  workflow_dispatch:       # permite correrlo manualmente desde GitHub
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger daily report
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+            https://ifpa-meta-ads-bot.vercel.app/api/daily_report
