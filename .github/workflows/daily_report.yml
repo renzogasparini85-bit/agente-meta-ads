@@ -12,4 +12,4 @@ jobs:
       - name: Trigger daily report
         run: |
           curl -s -o /dev/null -w "%{http_code}" \
-            https://ifpa-meta-ads-bot.vercel.app/api/daily_report
+            https://ifpa-meta-ads-bot-renzogasparini85-7599s-projects.vercel.app/api/daily_report
