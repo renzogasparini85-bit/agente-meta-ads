@@ -1,1 +1,1 @@
-# No external dependencies — uses only Python stdlib
+flask>=3.0.0
