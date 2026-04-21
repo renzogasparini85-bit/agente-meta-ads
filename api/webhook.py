@@ -1,11 +1,9 @@
-from flask import Flask, request, Response
+from http.server import BaseHTTPRequestHandler
 import json
 import urllib.request
 import urllib.parse
 import os
 from datetime import datetime, timedelta, timezone
-
-app = Flask(__name__)
 
 TOKEN = os.environ.get('META_ACCESS_TOKEN', '').strip()
 ACCOUNT = os.environ.get('META_AD_ACCOUNT_ID', 'act_3588452974767128').strip()
@@ -60,7 +58,7 @@ def get_ad_insights(ad_id, days=1):
             'time_range': json.dumps({'since': since, 'until': until})
         })
         return ins['data'][0] if ins.get('data') else {}
-    except:
+    except Exception:
         return {}
 
 
@@ -128,33 +126,19 @@ def cmd_reporte(chat_id):
 
         lines.append(f'{icon} <b>{name}</b> ({age}d)\n   CTR:{ctr:.2f}% CPA:{cpa} Freq:{freq:.1f} ${spend:.0f}')
 
-    # Análisis y recomendaciones
     recomendaciones = []
-    best = sorted(ad_data, key=lambda x: x['ctr'], reverse=True)
-    worst_ctr = [a for a in ad_data if a['ctr'] < 0.8 and a['impressions'] > 500]
-    high_freq = [a for a in ad_data if a['freq'] > 2.5]
-    low_cpa = [a for a in ad_data if a['convs'] > 0 and a['cpa'] < 2000]
-    old_ads = [a for a in ad_data if a['age'] > 30]
-    no_conv = [a for a in ad_data if a['spend'] > 3000 and a['convs'] == 0]
+    for a in [x for x in ad_data if x['convs'] > 0 and x['cpa'] < 2000]:
+        recomendaciones.append(f'⬆️ Escalar <b>{a["name"]}</b> — CPA ${a["cpa"]:.0f}, muy rentable')
+    for a in [x for x in ad_data if x['ctr'] < 0.8 and x['impressions'] > 500]:
+        recomendaciones.append(f'🔄 Refrescar creativo <b>{a["name"]}</b> — CTR {a["ctr"]:.2f}% en caída')
+    for a in [x for x in ad_data if x['freq'] > 2.5]:
+        recomendaciones.append(f'⏸ Pausar <b>{a["name"]}</b> — Frecuencia {a["freq"]:.1f}, audiencia saturada')
+    for a in [x for x in ad_data if x['spend'] > 3000 and x['convs'] == 0]:
+        recomendaciones.append(f'⏸ Revisar <b>{a["name"]}</b> — ${a["spend"]:.0f} gastado sin conversiones')
+    for a in [x for x in ad_data if x['age'] > 30]:
+        recomendaciones.append(f'🔁 Renovar <b>{a["name"]}</b> — {a["age"]} días activo, riesgo de fatiga')
 
-    if low_cpa:
-        for a in low_cpa:
-            recomendaciones.append(f'⬆️ Escalar <b>{a["name"]}</b> — CPA ${a["cpa"]:.0f}, muy rentable')
-    if worst_ctr:
-        for a in worst_ctr:
-            recomendaciones.append(f'🔄 Refrescar creativo <b>{a["name"]}</b> — CTR {a["ctr"]:.2f}% en caída')
-    if high_freq:
-        for a in high_freq:
-            recomendaciones.append(f'⏸ Pausar <b>{a["name"]}</b> — Frecuencia {a["freq"]:.1f}, audiencia saturada')
-    if no_conv:
-        for a in no_conv:
-            recomendaciones.append(f'⏸ Revisar <b>{a["name"]}</b> — ${a["spend"]:.0f} gastado sin conversiones')
-    if old_ads:
-        for a in old_ads:
-            recomendaciones.append(f'🔁 Renovar <b>{a["name"]}</b> — {a["age"]} días activo, riesgo de fatiga')
-
-    msg1 = f'📊 <b>IFPA Meta Ads — {today.strftime("%d/%m/%Y")}</b>\n'
-    msg1 += f'Activos: {len(ads)}\n\n'
+    msg1 = f'📊 <b>IFPA Meta Ads — {today.strftime("%d/%m/%Y")}</b>\nActivos: {len(ads)}\n\n'
     msg1 += '\n\n'.join(lines)
     if alerts:
         msg1 += '\n\n🚨 <b>ALERTAS:</b>\n' + '\n'.join(alerts)
@@ -220,13 +204,13 @@ def cmd_status(chat_id):
         convs = sum(int(a.get('value', 0)) for a in actions
                     if 'messaging' in a.get('action_type', ''))
         cpa = f'${spend/convs:.0f}' if convs > 0 else '-'
-        msg = f'📈 <b>Status IFPA — últimos 7 días</b>\n\n'
-        msg += f'💰 Gasto: ${spend:.0f}\n'
-        msg += f'👁 Impresiones: {impressions}\n'
-        msg += f'🖱 Clicks: {clicks}\n'
-        msg += f'💬 Conversaciones: {convs}\n'
-        msg += f'📉 CPA: {cpa}\n'
-        msg += f'🟢 Anuncios activos: {len(ads)}'
+        msg = (f'📈 <b>Status IFPA — últimos 7 días</b>\n\n'
+               f'💰 Gasto: ${spend:.0f}\n'
+               f'👁 Impresiones: {impressions}\n'
+               f'🖱 Clicks: {clicks}\n'
+               f'💬 Conversaciones: {convs}\n'
+               f'📉 CPA: {cpa}\n'
+               f'🟢 Anuncios activos: {len(ads)}')
         send_tg(chat_id, msg)
     except Exception as e:
         send_tg(chat_id, f'❌ Error: {str(e)}')
@@ -274,56 +258,71 @@ def cmd_escalar(chat_id, parts):
         new_budget = int(current * (1 + pct / 100))
         api_post(ad['adset_id'], {'daily_budget': str(new_budget)})
         send_tg(chat_id,
-            f'✅ Presupuesto escalado +{pct}%\n'
-            f'<b>{adset.get("name")}</b>\n'
-            f'Antes: ${current/100:.0f} → Ahora: ${new_budget/100:.0f}')
+                f'✅ Presupuesto escalado +{pct}%\n'
+                f'<b>{adset.get("name")}</b>\n'
+                f'Antes: ${current/100:.0f} → Ahora: ${new_budget/100:.0f}')
     except Exception as e:
         send_tg(chat_id, f'❌ Error: {str(e)}')
 
 
-@app.route('/api/webhook', methods=['GET'])
-def ping():
-    return 'IFPA Bot OK', 200
+def handle_message(body):
+    msg = body.get('message') or body.get('edited_message')
+    if not msg:
+        return
+
+    chat_id = str(msg.get('chat', {}).get('id', ''))
+    text = (msg.get('text') or '').strip()
+
+    if not text:
+        return
+
+    if chat_id not in ALLOWED_CHATS:
+        send_tg(chat_id, '⛔ No autorizado.')
+        return
+
+    text_lower = text.lower().lstrip('/')
+
+    if text_lower in ('reporte', 'report'):
+        cmd_reporte(chat_id)
+    elif text_lower in ('alertas', 'alert', 'alerts'):
+        cmd_alertas(chat_id)
+    elif text_lower in ('status', 'estado'):
+        cmd_status(chat_id)
+    elif text_lower.startswith('pausar '):
+        cmd_pausar(chat_id, text[7:].strip())
+    elif text_lower.startswith('pausa '):
+        cmd_pausar(chat_id, text[6:].strip())
+    elif text_lower.startswith('escalar '):
+        cmd_escalar(chat_id, text[8:].strip().split())
+    elif text_lower in ('ayuda', 'help', 'start', '/start', '/help'):
+        cmd_ayuda(chat_id)
+    else:
+        send_tg(chat_id, '❓ No entendí. Mandá <b>ayuda</b> para ver comandos.')
 
 
-@app.route('/api/webhook', methods=['POST'])
-def webhook():
-    try:
-        body = request.get_json(force=True, silent=True) or {}
-        msg = body.get('message') or body.get('edited_message')
-        if not msg:
-            return Response('ok', status=200)
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'IFPA Bot OK')
 
-        chat_id = str(msg.get('chat', {}).get('id', ''))
-        text = (msg.get('text') or '').strip()
+    def do_POST(self):
+        length = int(self.headers.get('Content-Length', 0))
+        body = {}
+        if length:
+            try:
+                body = json.loads(self.rfile.read(length))
+            except Exception:
+                pass
+        try:
+            handle_message(body)
+        except Exception as e:
+            send_tg(TG_CHAT, f'❌ Error interno: {str(e)}')
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'ok')
 
-        if not text:
-            return Response('ok', status=200)
-
-        if chat_id not in ALLOWED_CHATS:
-            send_tg(chat_id, '⛔ No autorizado.')
-            return Response('ok', status=200)
-
-        text_lower = text.lower().lstrip('/')
-
-        if text_lower in ('reporte', 'report'):
-            cmd_reporte(chat_id)
-        elif text_lower in ('alertas', 'alert', 'alerts'):
-            cmd_alertas(chat_id)
-        elif text_lower in ('status', 'estado'):
-            cmd_status(chat_id)
-        elif text_lower.startswith('pausar '):
-            cmd_pausar(chat_id, text[7:].strip())
-        elif text_lower.startswith('pausa '):
-            cmd_pausar(chat_id, text[6:].strip())
-        elif text_lower.startswith('escalar '):
-            cmd_escalar(chat_id, text[8:].strip().split())
-        elif text_lower in ('ayuda', 'help', 'start', '/start', '/help'):
-            cmd_ayuda(chat_id)
-        else:
-            send_tg(chat_id, '❓ No entendí. Mandá <b>ayuda</b> para ver comandos.')
-
-    except Exception as e:
-        send_tg(TG_CHAT, f'❌ Error interno: {str(e)}')
-
-    return Response('ok', status=200)
+    def log_message(self, format, *args):
+        pass
