@@ -1,11 +1,9 @@
-from flask import Flask, Response
+from http.server import BaseHTTPRequestHandler
 import json
 import urllib.request
 import urllib.parse
 import os
 from datetime import datetime, timedelta, timezone
-
-app = Flask(__name__)
 
 TOKEN = os.environ.get('META_ACCESS_TOKEN', '').strip()
 ACCOUNT = os.environ.get('META_AD_ACCOUNT_ID', 'act_3588452974767128').strip()
@@ -50,23 +48,22 @@ def get_ad_insights(ad_id):
             'time_range': json.dumps({'since': since, 'until': until})
         })
         return ins['data'][0] if ins.get('data') else {}
-    except:
+    except Exception:
         return {}
 
 
-@app.route('/api/daily_report', methods=['GET', 'POST'])
-def daily_report():
+def run_report():
     today = datetime.now(timezone.utc)
 
     try:
         ads = get_active_ads()
     except Exception as e:
         send_tg(f'❌ Error al consultar Meta: {str(e)}')
-        return Response('error', status=500)
+        return 500
 
     if not ads:
         send_tg('ℹ️ No hay anuncios activos.')
-        return Response('ok', status=200)
+        return 200
 
     lines = []
     alerts = []
@@ -107,21 +104,15 @@ def daily_report():
         )
 
     recomendaciones = []
-    low_cpa = [a for a in ad_data if a['convs'] > 0 and a['cpa'] < 2000]
-    worst_ctr = [a for a in ad_data if a['ctr'] < 0.8 and a['impressions'] > 500]
-    high_freq = [a for a in ad_data if a['freq'] > 2.5]
-    old_ads = [a for a in ad_data if a['age'] > 30]
-    no_conv = [a for a in ad_data if a['spend'] > 5000 and a['convs'] == 0]
-
-    for a in low_cpa:
+    for a in [x for x in ad_data if x['convs'] > 0 and x['cpa'] < 2000]:
         recomendaciones.append(f'⬆️ Escalar <b>{a["name"]}</b> — CPA ${a["cpa"]:.0f}')
-    for a in worst_ctr:
+    for a in [x for x in ad_data if x['ctr'] < 0.8 and x['impressions'] > 500]:
         recomendaciones.append(f'🔄 Refrescar creativo <b>{a["name"]}</b> — CTR {a["ctr"]:.2f}%')
-    for a in high_freq:
+    for a in [x for x in ad_data if x['freq'] > 2.5]:
         recomendaciones.append(f'⏸ Pausar <b>{a["name"]}</b> — Freq {a["freq"]:.1f}')
-    for a in no_conv:
+    for a in [x for x in ad_data if x['spend'] > 5000 and x['convs'] == 0]:
         recomendaciones.append(f'⏸ Revisar <b>{a["name"]}</b> — ${a["spend"]:.0f} sin conversiones')
-    for a in old_ads:
+    for a in [x for x in ad_data if x['age'] > 30]:
         recomendaciones.append(f'🔁 Renovar <b>{a["name"]}</b> — {a["age"]}d activo')
 
     msg1 = f'📊 <b>IFPA Meta Ads — {today.strftime("%d/%m/%Y")}</b>\n'
@@ -137,4 +128,19 @@ def daily_report():
         msg2 += '\n\n💬 pausar [nombre] | escalar [nombre] [%]'
         send_tg(msg2[:4000])
 
-    return Response('ok', status=200)
+    return 200
+
+
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        status = run_report()
+        self.send_response(status)
+        self.send_header('Content-Type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'ok' if status == 200 else b'error')
+
+    def do_POST(self):
+        self.do_GET()
+
+    def log_message(self, format, *args):
+        pass  # silenciar logs de acceso

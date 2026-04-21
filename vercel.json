@@ -1,15 +1,4 @@
 {
-  "functions": {
-    "api/daily_report.py": {
-      "runtime": "vercel-python@4.x"
-    }
-  },
-  "routes": [
-    {
-      "src": "/api/daily_report",
-      "dest": "/api/daily_report.py"
-    }
-  ],
   "crons": [
     {
       "path": "/api/daily_report",
