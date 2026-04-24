@@ -9,7 +9,14 @@ jobs:
   send-report:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger daily report
-        run: |
-          curl -s -o /dev/null -w "%{http_code}" \
-            https://ifpa-meta-ads-bot-renzogasparini85-7599s-projects.vercel.app/api/daily_report
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run daily report
+        env:
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          META_AD_ACCOUNT_ID: ${{ secrets.META_AD_ACCOUNT_ID }}
+        run: python api/daily_report.py

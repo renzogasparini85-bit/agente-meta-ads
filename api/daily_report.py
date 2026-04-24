@@ -131,6 +131,12 @@ def run_report():
     return 200
 
 
+if __name__ == '__main__':
+    import sys
+    code = run_report()
+    sys.exit(0 if code == 200 else 1)
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         status = run_report()
