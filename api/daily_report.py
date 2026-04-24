@@ -133,7 +133,14 @@ def run_report():
 
 if __name__ == '__main__':
     import sys
-    code = run_report()
+    import traceback
+    print(f"TOKEN set: {bool(TOKEN)}, len={len(TOKEN)}")
+    print(f"ACCOUNT: {ACCOUNT}")
+    try:
+        code = run_report()
+    except Exception as e:
+        traceback.print_exc()
+        sys.exit(1)
     sys.exit(0 if code == 200 else 1)
 
 
