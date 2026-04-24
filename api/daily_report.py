@@ -26,8 +26,20 @@ def send_tg(msg):
         'parse_mode': 'HTML'
     }).encode()
     req = urllib.request.Request(url, data=data)
-    with urllib.request.urlopen(req, timeout=15) as r:
-        return json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        print(f"Telegram error {e.code}: {body}")
+        # Reintentar sin HTML
+        data2 = urllib.parse.urlencode({
+            'chat_id': TG_CHAT,
+            'text': msg
+        }).encode()
+        req2 = urllib.request.Request(url, data=data2)
+        with urllib.request.urlopen(req2, timeout=15) as r:
+            return json.loads(r.read())
 
 
 def get_active_ads():
