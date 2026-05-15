@@ -1,9 +1,7 @@
 name: Daily Meta Ads Report
 
 on:
-  schedule:
-    - cron: '0 12 * * *'  # 09:00 Argentina (UTC-3)
-  workflow_dispatch:       # permite correrlo manualmente desde GitHub
+  workflow_dispatch:       # solo manual, sin envío automático
 
 jobs:
   send-report:
