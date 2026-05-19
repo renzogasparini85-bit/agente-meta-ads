@@ -116,11 +116,12 @@ async def campaign_ads(
 @router.get("/tree")
 async def campaign_tree(
     days: int = Query(30),
+    account_id: str = Query(None),
     db: Session = Depends(get_db),
     client: Client = Depends(get_current_client),
 ):
     """Devuelve jerarquía completa Campaña → AdSet → Ad con insights."""
-    ad_account_id, token, _, _, _ = resolve_account(client, None, db)
+    ad_account_id, token, _, _, _ = resolve_account(client, account_id, db)
     try:
         tree = await get_hierarchy_tree(ad_account_id, token, days)
     except Exception as e:
