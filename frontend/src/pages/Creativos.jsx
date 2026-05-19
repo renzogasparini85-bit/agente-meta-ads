@@ -515,6 +515,13 @@ export default function Creativos() {
             </div>
           )}
 
+          {base?.length === 0 && (
+            <div className="text-center py-16 text-slate-500 text-sm space-y-2">
+              <p>Sin anuncios con gasto registrado en este período.</p>
+              <p className="text-slate-600 text-xs">Probá ampliar el rango de fechas o verificar que la cuenta tenga anuncios activos.</p>
+            </div>
+          )}
+
           {/* ── Acciones prioritarias ── */}
           {accionables.length > 0 && (
             <Section title="Acción inmediata" subtitle="Anuncios con señal clara — escalar, retener o mejorar el copy" color="green">
