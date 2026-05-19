@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 import json
 from datetime import datetime, timedelta
@@ -228,18 +229,11 @@ async def get_hierarchy_tree(account_id: str, token: str, days: int = 30) -> lis
         }]
     }]
     """
-    import asyncio
     campaigns_raw, adsets_raw, ads_raw = await asyncio.gather(
         get_campaign_insights(account_id, token, days),
         get_adset_insights(account_id, token, days),
         get_ad_insights(account_id, token, days),
     )
-
-    def extract_conversions(actions):
-        if not actions:
-            return 0
-        conv_types = {"onsite_conversion.messaging_conversation_started_7d", "lead", "offsite_conversion.fb_pixel_purchase"}
-        return sum(int(a.get("value", 0)) for a in actions if a.get("action_type") in conv_types)
 
     def compute_cpa(spend, conv):
         try:
