@@ -91,7 +91,7 @@ function ModalVariacionPaid({ ad, onClose, nombreCuenta }) {
     setError(null)
     try {
       let perfil = ''
-      try { const b = await brandAPI.get(); perfil = JSON.stringify(b) } catch (_) {}
+      try { const b = await brandAPI.get(account?.id); perfil = JSON.stringify(b) } catch (_) {}
       const res = await recommendationsAPI.copy({
         angulo,
         formato_salida:  formato,

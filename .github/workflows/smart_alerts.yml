@@ -1,0 +1,24 @@
+name: Smart Alerts — Escaneo diario
+
+on:
+  schedule:
+    - cron: '0 10 * * *'   # 7am Argentina (UTC-3)
+  workflow_dispatch:         # permite ejecutar manualmente
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Escanear alertas de todos los clientes
+        run: |
+          curl -s -X POST \
+            "${{ secrets.BACKEND_URL }}/alerts/scan" \
+            -H "x-api-key: ${{ secrets.SCAN_API_KEY }}" \
+            | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          print(f'Clientes escaneados: {data[\"clientes_escaneados\"]}')
+          print(f'Alertas generadas: {data[\"alertas_generadas\"]}')
+          for d in data.get('detalle', []):
+              print(f'  - {d[\"cliente\"]}: {d.get(\"alertas_nuevas\", \"error\")}')
+          "

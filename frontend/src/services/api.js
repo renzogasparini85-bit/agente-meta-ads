@@ -122,8 +122,14 @@ export const organicAPI = {
 }
 
 export const brandAPI = {
-  get: () => api.get('/clients/me/brand').then(r => r.data),
-  save: (data) => api.put('/clients/me/brand', data).then(r => r.data),
+  get: (accountId = null) => {
+    const p = accountId ? `?account_id=${accountId}` : ''
+    return api.get(`/clients/me/brand${p}`).then(r => r.data)
+  },
+  save: (data, accountId = null) => {
+    const p = accountId ? `?account_id=${accountId}` : ''
+    return api.put(`/clients/me/brand${p}`, data).then(r => r.data)
+  },
 }
 
 export const recommendationsAPI = {
