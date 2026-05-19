@@ -114,19 +114,22 @@ async def get_ad_thumbnails(account_id: str, token: str) -> dict:
 
 
 async def get_ad_created_dates(account_id: str, token: str) -> dict:
+    """Devuelve {ad_id: created_time} para calcular antigüedad real del anuncio."""
     if token == "DEMO":
         return demo_get("created", account_id)
-    """Devuelve {ad_id: created_time} para calcular antigüedad real del anuncio."""
-    data = await meta_get(
-        f"{account_id}/ads",
-        {
-            "fields": "id,created_time",
-            "effective_status": json.dumps(["ACTIVE", "PAUSED", "ARCHIVED"]),
-            "limit": "500",
-        },
-        token,
-    )
-    return {a["id"]: a.get("created_time", "") for a in data.get("data", [])}
+    try:
+        data = await meta_get(
+            f"{account_id}/ads",
+            {
+                "fields": "id,created_time",
+                "effective_status": json.dumps(["ACTIVE", "PAUSED", "ARCHIVED"]),
+                "limit": "500",
+            },
+            token,
+        )
+        return {a["id"]: a.get("created_time", "") for a in data.get("data", [])}
+    except Exception:
+        return {}
 
 
 async def get_account_insights(account_id: str, token: str, days: int = 30) -> dict:

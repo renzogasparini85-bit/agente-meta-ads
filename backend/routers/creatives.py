@@ -137,17 +137,17 @@ async def ranking(
     from routers.account_resolver import resolve_account
     ad_account_id, token, _, campaign_filter, _ = resolve_account(client, account_id, db)
     import asyncio
-    try:
-        raw, created_dates, thumbnails = await asyncio.gather(
-            get_ad_insights(ad_account_id, token, days, since=since, until=until),
-            get_ad_created_dates(ad_account_id, token),
-            get_ad_thumbnails(ad_account_id, token),
-        )
-    except Exception as e:
-        err = str(e)
-        if "400" in err or "401" in err or "403" in err:
-            raise HTTPException(status_code=502, detail=f"Error al consultar Meta API: {err[:200]}")
-        raise HTTPException(status_code=502, detail=f"Error de red: {err[:200]}")
+    results = await asyncio.gather(
+        get_ad_insights(ad_account_id, token, days, since=since, until=until),
+        get_ad_created_dates(ad_account_id, token),
+        get_ad_thumbnails(ad_account_id, token),
+        return_exceptions=True,
+    )
+    if isinstance(results[0], Exception):
+        raise HTTPException(status_code=502, detail=f"Error Meta API: {str(results[0])[:200]}")
+    raw = results[0]
+    created_dates = results[1] if not isinstance(results[1], Exception) else {}
+    thumbnails    = results[2] if not isinstance(results[2], Exception) else {}
 
     result = []
     for a in raw:
