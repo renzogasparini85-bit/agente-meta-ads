@@ -286,6 +286,9 @@ async def get_hierarchy_tree(account_id: str, token: str, days: int = 30) -> lis
         spend = float(adset.get("spend", 0))
         ctr = float(adset.get("ctr", 0))
         freq = float(adset.get("frequency", 0))
+        impressions_a = float(adset.get("impressions", 0))
+        reach_a = float(adset.get("reach", 0))
+        ftir_a = round(reach_a / impressions_a * 100, 1) if impressions_a > 0 else None
         cpa = compute_cpa(spend, conv)
         adsets_by_campaign.setdefault(cid, []).append({
             "adset_id": aid,
@@ -295,6 +298,7 @@ async def get_hierarchy_tree(account_id: str, token: str, days: int = 30) -> lis
             "cpa": cpa,
             "conversiones": conv,
             "frecuencia": round(freq, 2),
+            "ftir": ftir_a,
             "estado": semaforo(cpa, freq, ctr),
             "ads": ads_by_adset.get(aid, []),
         })
@@ -306,6 +310,10 @@ async def get_hierarchy_tree(account_id: str, token: str, days: int = 30) -> lis
         conv = extract_conversions(c.get("actions"))
         spend = float(c.get("spend", 0))
         ctr = float(c.get("ctr", 0))
+        freq = float(c.get("frequency", 0))
+        impressions = float(c.get("impressions", 0))
+        reach = float(c.get("reach", 0))
+        ftir = round((reach / impressions * 100), 1) if impressions > 0 else None
         cpa = compute_cpa(spend, conv)
         adsets = adsets_by_campaign.get(cid, [])
         tree.append({
@@ -314,9 +322,11 @@ async def get_hierarchy_tree(account_id: str, token: str, days: int = 30) -> lis
             "objective": c.get("objective"),
             "spend": spend,
             "ctr": round(ctr, 2),
+            "frecuencia": round(freq, 2),
+            "ftir": ftir,
             "cpa": cpa,
             "conversiones": conv,
-            "estado": semaforo(cpa, None, ctr),
+            "estado": semaforo(cpa, freq, ctr),
             "n_adsets": len(adsets),
             "n_ads": sum(len(a["ads"]) for a in adsets),
             "adsets": adsets,

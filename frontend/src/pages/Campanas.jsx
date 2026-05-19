@@ -45,7 +45,7 @@ function CampaignRow({ campaign }) {
           </p>
         </div>
 
-        <div className="flex items-center gap-5 shrink-0 text-xs">
+        <div className="flex items-center gap-4 shrink-0 text-xs">
           {campaign.cpa != null && (
             <div className="text-right hidden sm:block">
               <p className="text-slate-300 font-semibold">CPA ${fmt(campaign.cpa)}</p>
@@ -54,7 +54,18 @@ function CampaignRow({ campaign }) {
           )}
           <div className="text-right hidden md:block">
             <p className="text-slate-400">CTR {campaign.ctr}%</p>
+            <p className={`text-xs ${campaign.frecuencia > 3 ? 'text-red-400' : campaign.frecuencia > 2 ? 'text-yellow-400' : 'text-slate-500'}`}>
+              Frec. {campaign.frecuencia ?? '—'}
+            </p>
           </div>
+          {campaign.ftir != null && (
+            <div className="text-right hidden lg:block">
+              <p className={`text-xs font-medium ${campaign.ftir >= 60 ? 'text-green-400' : campaign.ftir >= 35 ? 'text-yellow-400' : 'text-slate-400'}`}>
+                FTIR {campaign.ftir}%
+              </p>
+              <p className="text-slate-600 text-[10px]">{campaign.ftir >= 60 ? 'Prospección' : campaign.ftir >= 35 ? 'Mixto' : 'Retargeting'}</p>
+            </div>
+          )}
           <div className="text-right">
             <p className="text-slate-300 font-medium">${fmt(campaign.spend)}</p>
             <p className={`text-xs font-medium ${s.color}`}>{s.label}</p>

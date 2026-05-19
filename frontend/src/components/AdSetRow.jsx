@@ -21,6 +21,24 @@ export default function AdSetRow({ adset, defaultOpen = false }) {
     ? adset.adset_name.split('—').pop()?.trim()
     : null
 
+  const anguloInsight = (() => {
+    const frec = adset.frecuencia
+    const ftir = adset.ftir
+    if (!frec && !ftir) return null
+    const partes = []
+    if (ftir != null) {
+      if (ftir >= 60) partes.push(`FTIR ${ftir}% — llegando a audiencia nueva (prospección)`)
+      else if (ftir >= 35) partes.push(`FTIR ${ftir}% — audiencia mixta`)
+      else partes.push(`FTIR ${ftir}% — mayormente retargeting`)
+    }
+    if (frec != null) {
+      if (frec > 3) partes.push(`frecuencia ${frec} — riesgo de fatiga`)
+      else if (frec > 2) partes.push(`frecuencia ${frec} — monitorear`)
+      else partes.push(`frecuencia ${frec} — saludable`)
+    }
+    return partes.join(' · ')
+  })()
+
   return (
     <div className="ml-5 space-y-1">
       <div
@@ -41,7 +59,12 @@ export default function AdSetRow({ adset, defaultOpen = false }) {
               </span>
             )}
           </div>
-          <span className="text-slate-600 text-xs">{adset.ads?.length || 0} anuncios</span>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-slate-600 text-xs">{adset.ads?.length || 0} anuncios</span>
+            {anguloInsight && (
+              <span className="text-slate-500 text-[10px] truncate hidden sm:block">· {anguloInsight}</span>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-4 shrink-0 text-xs text-slate-500">
@@ -55,8 +78,18 @@ export default function AdSetRow({ adset, defaultOpen = false }) {
           )}
           <div className="text-right hidden sm:block">
             <p className="text-slate-400">CTR {adset.ctr}%</p>
-            <p className="text-slate-600">Frec. {adset.frecuencia}</p>
+            <p className={`text-xs ${adset.frecuencia > 3 ? 'text-red-400' : adset.frecuencia > 2 ? 'text-yellow-400' : 'text-slate-600'}`}>
+              Frec. {adset.frecuencia}
+            </p>
           </div>
+          {adset.ftir != null && (
+            <div className="text-right hidden lg:block">
+              <p className={`text-xs font-medium ${adset.ftir >= 60 ? 'text-green-400' : adset.ftir >= 35 ? 'text-yellow-400' : 'text-slate-400'}`}>
+                FTIR {adset.ftir}%
+              </p>
+              <p className="text-slate-600 text-[10px]">{adset.ftir >= 60 ? 'Prospección' : adset.ftir >= 35 ? 'Mixto' : 'Retarg.'}</p>
+            </div>
+          )}
           <div className="text-right">
             <p className="text-slate-400">${fmt(adset.spend)}</p>
             <p className={`text-xs font-medium ${s.color}`}>{s.label}</p>
