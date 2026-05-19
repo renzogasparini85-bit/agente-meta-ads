@@ -457,7 +457,7 @@ export default function Creativos() {
   const accionables = base?.filter(c => ['escalar','optimizar','retener'].includes(c.badge)) || []
 
   const cardProps = (c, i) => ({
-    key: c.id, c, rank: i,
+    c, rank: i,
     expanded: expandedId === c.id,
     onExpand: () => setExpandedId(expandedId === c.id ? null : c.id),
     onPause: () => handlePauseAd(c), pausing: pausing === c.id,
