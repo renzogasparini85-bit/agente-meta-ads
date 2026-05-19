@@ -518,7 +518,7 @@ export default function Creativos() {
           {/* ── Acciones prioritarias ── */}
           {accionables.length > 0 && (
             <Section title="Acción inmediata" subtitle="Anuncios con señal clara — escalar, retener o mejorar el copy" color="green">
-              {accionables.map((c, i) => <CreativoCard {...cardProps(c, i)} />)}
+              {accionables.map((c, i) => <CreativoCard key={c.id} {...cardProps(c, i)} />)}
             </Section>
           )}
 
@@ -529,7 +529,7 @@ export default function Creativos() {
               subtitle={`FTIR > 60% · ${prospeccion.length} anuncios llegando a audiencia fría`}
               color="violet"
             >
-              {prospeccion.map((c, i) => <CreativoCard {...cardProps(c, i)} />)}
+              {prospeccion.map((c, i) => <CreativoCard key={c.id} {...cardProps(c, i)} />)}
             </Section>
           )}
 
@@ -540,14 +540,14 @@ export default function Creativos() {
               subtitle={`FTIR < 35% · ${retargeting.length} anuncios circulando en audiencia conocida`}
               color="cyan"
             >
-              {retargeting.map((c, i) => <CreativoCard {...cardProps(c, i)} />)}
+              {retargeting.map((c, i) => <CreativoCard key={c.id} {...cardProps(c, i)} />)}
             </Section>
           )}
 
           {/* ── Mixto / sin datos ── */}
           {mixto.length > 0 && (
             <Section title="Otros anuncios" subtitle="FTIR intermedio o sin datos suficientes" color="slate">
-              {mixto.map((c, i) => <CreativoCard {...cardProps(c, i)} />)}
+              {mixto.map((c, i) => <CreativoCard key={c.id} {...cardProps(c, i)} />)}
             </Section>
           )}
 
@@ -593,20 +593,20 @@ function CampaignAngulosTable({ campaign }) {
   const adsets = Object.values(campaign.adsets || {})
 
   // Sort by spend desc
-  adsets.sort((a, b) => (b.spend || 0) - (a.spend || 0))
+  const sorted = [...adsets].sort((a, b) => (b.spend || 0) - (a.spend || 0))
 
   // Compute avg campaign CPA
-  const totalConv = adsets.reduce((s, a) => s + (a.conversiones || 0), 0)
-  const totalSpend = adsets.reduce((s, a) => s + (a.spend || 0), 0)
+  const totalConv = sorted.reduce((s, a) => s + (a.conversiones || 0), 0)
+  const totalSpend = sorted.reduce((s, a) => s + (a.spend || 0), 0)
   const avgCPA = totalConv > 0 ? totalSpend / totalConv : null
 
   // Best and worst adset by CPA (with conversiones > 0)
-  const withCPA = adsets.filter(a => a.cpa != null && a.conversiones > 0)
+  const withCPA = sorted.filter(a => a.cpa != null && a.conversiones > 0)
   const best  = withCPA.length ? withCPA.reduce((b, a) => a.cpa < b.cpa ? a : b) : null
   const worst = withCPA.length > 1 ? withCPA.reduce((b, a) => a.cpa > b.cpa ? a : b) : null
 
   const getAdsetBadge = (adset) => {
-    if (!adset.cpa || adset.conversiones === 0) return 'sin_conversiones'
+    if (adset.cpa == null || adset.conversiones === 0) return 'sin_conversiones'
     if (avgCPA && adset.cpa < avgCPA * 0.8) return 'escalar'
     if (avgCPA && adset.cpa > avgCPA * 1.5) return 'pausar'
     if (adset.frecuencia > 3) return 'fatiga'
@@ -625,7 +625,7 @@ function CampaignAngulosTable({ campaign }) {
         <div>
           <p className="text-white font-semibold text-sm">{campaign.campaign_name}</p>
           <p className="text-slate-500 text-xs mt-0.5">
-            {adsets.length} conjuntos · ${totalSpend.toLocaleString('es-AR', { maximumFractionDigits: 0 })} inversión
+            {sorted.length} conjuntos · ${totalSpend.toLocaleString('es-AR', { maximumFractionDigits: 0 })} inversión
             {avgCPA && <span> · CPA prom: <span className="text-slate-300">${avgCPA.toFixed(0)}</span></span>}
           </p>
         </div>
@@ -646,7 +646,7 @@ function CampaignAngulosTable({ campaign }) {
             </tr>
           </thead>
           <tbody>
-            {adsets.map(adset => {
+            {sorted.map(adset => {
               const badge = getAdsetBadge(adset)
               const angle = extractAngle(adset.adset_name)
               const cfg = badgeConfig[badge] || badgeConfig.mantener
