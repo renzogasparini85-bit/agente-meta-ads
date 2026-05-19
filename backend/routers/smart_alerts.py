@@ -85,14 +85,14 @@ async def _scan_adset_angles(account_id: str, token: str, db, client_id: int) ->
             if spend > 3000 and conv == 0:
                 exists = db.query(Alert).filter_by(
                     client_id=client_id, tipo="sin_conversion",
-                    ad_id=adset_id, estado="activa"
+                    ad_id=f"adset_{adset_id}", estado="activa"
                 ).first()
                 if not exists:
                     db.add(Alert(
                         client_id=client_id,
                         tipo="sin_conversion",
                         severidad="alta",
-                        ad_id=adset_id,
+                        ad_id=f"adset_{adset_id}",
                         mensaje=f'Conjunto "{adset_name}" gastó ${spend:,.0f} en 7 días sin conversiones. Revisá el ángulo o pausalo.',
                         estado="activa",
                     ))
@@ -101,14 +101,14 @@ async def _scan_adset_angles(account_id: str, token: str, db, client_id: int) ->
             if cpa and cpa_promedio and cpa > cpa_promedio * 2:
                 exists = db.query(Alert).filter_by(
                     client_id=client_id, tipo="cpa_alto",
-                    ad_id=adset_id, estado="activa"
+                    ad_id=f"adset_{adset_id}", estado="activa"
                 ).first()
                 if not exists:
                     db.add(Alert(
                         client_id=client_id,
                         tipo="cpa_alto",
                         severidad="media",
-                        ad_id=adset_id,
+                        ad_id=f"adset_{adset_id}",
                         mensaje=f'Conjunto "{adset_name}" tiene CPA ${cpa:,.0f} — el doble del promedio de la campaña (${cpa_promedio:,.0f}). Considerá pausarlo y escalar los otros ángulos.',
                         estado="activa",
                     ))
