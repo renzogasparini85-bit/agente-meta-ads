@@ -120,9 +120,9 @@ async def campaign_tree(
     client: Client = Depends(get_current_client),
 ):
     """Devuelve jerarquía completa Campaña → AdSet → Ad con insights."""
-    _, _, _, _, account = resolve_account(client, None, db)
+    ad_account_id, token, _, _, _ = resolve_account(client, None, db)
     try:
-        tree = await get_hierarchy_tree(account.meta_ad_account_id, account.meta_access_token, days)
+        tree = await get_hierarchy_tree(ad_account_id, token, days)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Error Meta API: {str(e)}")
     return {"tree": tree, "days": days}
