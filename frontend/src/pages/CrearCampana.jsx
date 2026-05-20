@@ -59,6 +59,44 @@ function Field({ label, children }) {
   )
 }
 
+function WhatsappNumberSelector({ accountId, value, onChange }) {
+  const [numbers, setNumbers] = useState([])
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    campaignsAPI.getWhatsappNumbers(accountId)
+      .then(r => setNumbers(r.data || []))
+      .catch(() => setNumbers([]))
+      .finally(() => setLoading(false))
+  }, [accountId])
+
+  if (loading) return <p className="text-slate-500 text-xs py-1">Cargando números de WhatsApp…</p>
+
+  if (numbers.length === 0) {
+    return (
+      <Field label="Número de WhatsApp">
+        <input value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="5491112345678"
+          className={inputCls} />
+        <p className="text-slate-600 text-xs mt-1">No se encontraron números vinculados a la página. Ingresá manualmente: 549 + código de área + número.</p>
+      </Field>
+    )
+  }
+
+  return (
+    <Field label="Número de WhatsApp">
+      <select value={value} onChange={e => onChange(e.target.value)} className={inputCls}>
+        <option value="">Seleccioná un número…</option>
+        {numbers.map(n => (
+          <option key={n.display_phone_number} value={n.display_phone_number.replace(/\D/g, '')}>
+            {n.verified_name} — {n.display_phone_number}
+          </option>
+        ))}
+      </select>
+    </Field>
+  )
+}
+
 function SavedAudienceSelector({ accountId, value, onChange }) {
   const [audiences, setAudiences] = useState([])
   useEffect(() => {
@@ -358,12 +396,11 @@ export default function CrearCampana({ onClose, onCreated, account }) {
             )}
 
             {form.destino === 'WHATSAPP' && (
-              <Field label="Número de WhatsApp (con código de país)">
-                <input value={form.whatsapp_number}
-                  onChange={e => setForm(f => ({ ...f, whatsapp_number: e.target.value }))}
-                  placeholder="5491112345678" className={inputCls} />
-                <p className="text-slate-600 text-xs mt-1">Formato: 549 + código de área + número (sin espacios ni +)</p>
-              </Field>
+              <WhatsappNumberSelector
+                accountId={account?.id}
+                value={form.whatsapp_number}
+                onChange={n => setForm(f => ({ ...f, whatsapp_number: n }))}
+              />
             )}
 
             {form.destino === 'WEBSITE' && (

@@ -11,7 +11,7 @@ from services.meta_api import (
     extract_conversions, compute_cpa,
     get_hierarchy_tree,
     create_adset, create_ad, create_ad_creative,
-    get_saved_audiences, get_ad_images,
+    get_saved_audiences, get_ad_images, get_whatsapp_numbers,
 )
 from routers.creatives import compute_roas_hibrido, compute_ftir, extract_marca
 from routers.account_resolver import resolve_account
@@ -205,6 +205,21 @@ async def ad_images(
     ad_account_id, token, _, _, _ = resolve_account(client, account_id, db)
     images = await get_ad_images(ad_account_id, token)
     return {"data": images}
+
+
+@router.get("/whatsapp-numbers")
+async def whatsapp_numbers(
+    account_id: str = Query(None),
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    """Retorna los números de WhatsApp vinculados a la página de Meta de la cuenta."""
+    ad_account_id, token, _, _, account_row = resolve_account(client, account_id, db)
+    page_id = getattr(account_row, "meta_page_id", None) if account_row else None
+    if not page_id:
+        page_id = client.meta_ad_account_id
+    numbers = await get_whatsapp_numbers(page_id, token)
+    return {"data": numbers, "page_id": page_id}
 
 
 class CreateAdsetRequest(BaseModel):

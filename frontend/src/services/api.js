@@ -79,6 +79,8 @@ export const campaignsAPI = {
     api.get('/campaigns/saved-audiences', { params: accountId ? { account_id: String(accountId) } : {} }).then((r) => r.data),
   getAdImages: (accountId) =>
     api.get('/campaigns/ad-images', { params: accountId ? { account_id: String(accountId) } : {} }).then((r) => r.data),
+  getWhatsappNumbers: (accountId) =>
+    api.get('/campaigns/whatsapp-numbers', { params: accountId ? { account_id: String(accountId) } : {} }).then((r) => r.data),
   tree: (days = 30, accountId) => {
     const p = accountId ? `?days=${days}&account_id=${accountId}` : `?days=${days}`
     return api.get(`/campaigns/tree${p}`).then(r => r.data)
