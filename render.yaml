@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: meta-ads-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash start.sh
+    envVars:
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_ACCESS_TOKEN
+        sync: false
+      - key: META_AD_ACCOUNT_ID
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SEED_EMAIL
+        sync: false
+      - key: SEED_PASSWORD
+        sync: false
+      - key: SEED_NOMBRE
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
