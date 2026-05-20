@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, XCircle } from 'lucide-react'
+import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, XCircle, Plus } from 'lucide-react'
 import { campaignsAPI } from '../services/api'
 import { useFetch } from '../hooks/useFetch'
 import { PageLoading, ErrorState } from '../components/LoadingState'
 import { useAccount } from '../context/AccountContext'
 import AdSetRow from '../components/AdSetRow'
+import CrearCampana from './CrearCampana'
 
 const PERIODS = [
   { label: 'Hoy', days: 1 },
@@ -90,6 +91,7 @@ function CampaignRow({ campaign }) {
 export default function Campanas() {
   const { selected: account } = useAccount()
   const [days, setDays] = useState(30)
+  const [showCrear, setShowCrear] = useState(false)
 
   const { data, loading, error, refetch } = useFetch(
     () => campaignsAPI.tree(days, account?.id),
@@ -109,11 +111,22 @@ export default function Campanas() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-white text-2xl font-bold">Campañas</h1>
-        <p className="text-slate-400 text-sm mt-1">
-          {tree.length} campañas · {totales.adsets} conjuntos · {totales.ads} anuncios
-        </p>
+      {showCrear && <CrearCampana onClose={() => setShowCrear(false)} onCreated={() => { setShowCrear(false); refetch() }} />}
+
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-white text-2xl font-bold">Campañas</h1>
+          <p className="text-slate-400 text-sm mt-1">
+            {tree.length} campañas · {totales.adsets} conjuntos · {totales.ads} anuncios
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCrear(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-violet-DEFAULT text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+        >
+          <Plus size={15} />
+          Nueva campaña
+        </button>
       </div>
 
       <div className="flex gap-2">

@@ -975,30 +975,36 @@ async def generate_copy(body: CopyRequest, client: Client = Depends(get_current_
         ),
     }.get(body.formato_salida, "Formato: imagen estática.")
 
-    prompt = f"""Sos un experto en marketing de contenidos y publicidad para redes sociales.
+    prompt = f"""Sos un experto en publicidad digital y copywriting para Meta Ads (Facebook/Instagram).
 
-MARCA: {marca}
-TONO: {tono}
-PÚBLICO OBJETIVO: {pub}
-PROPUESTA DE VALOR: {prop}
-BENEFICIOS CLAVE: {bens}
-{f'PERFIL DE MARCA ADICIONAL: {body.perfil_marca}' if body.perfil_marca else ''}
+Tu tarea: crear un brief creativo completo y listo para ejecutar, basado en un anuncio que ya está corriendo y sus métricas reales.
 
-POST ORIGINAL (referencia):
+━━━ CONTEXTO DEL ANUNCIO ORIGINAL ━━━
 {body.tema or '(sin referencia específica)'}
 
-ÁNGULO CREATIVO A APLICAR: {body.angulo}
+━━━ MARCA Y AUDIENCIA ━━━
+Marca: {marca}
+Tono: {tono}
+Público objetivo: {pub}
+Propuesta de valor: {prop}
+Beneficios clave: {bens}
+{f'Perfil adicional: {body.perfil_marca}' if body.perfil_marca else ''}
 
+━━━ ÁNGULO CREATIVO A APLICAR ━━━
+{body.angulo}
+
+━━━ LO QUE DEBÉS ENTREGAR ━━━
 {formato_instrucciones}
 
-REGLAS:
-- Usá voseo rioplatense (vos, sabés, podés, hacé)
-- Sin emojis genéricos ni frases vacías
-- El copy debe ser concreto, específico y con datos cuando sea posible
-- Cada pieza debe poder publicarse tal cual, sin edición
-- Aplicá el ángulo "{body.angulo}" de forma clara y efectiva
+━━━ REGLAS OBLIGATORIAS ━━━
+- Usá voseo rioplatense (vos, sabés, podés, hacé, escribinos)
+- El titular tiene que hablar del producto/servicio REAL de {marca}, no genérico
+- El caption tiene que mencionar contexto concreto del rubro (no "esto", "el producto", "el servicio")
+- Si el CPA o CTR es alto, el ángulo debe atacar esa fricción específica
+- Copy listo para publicar, sin placeholders como "[completar]" o "[nombre]"
+- Aplicá el ángulo "{body.angulo}" de forma clara, no solo como concepto sino en cada línea
 
-Generá el contenido completo ahora:"""
+Generá el brief completo ahora:"""
 
     try:
         import anthropic as _ant

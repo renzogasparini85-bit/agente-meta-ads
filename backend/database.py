@@ -44,6 +44,7 @@ class Client(Base):
     marca_palabras_si = Column(Text, nullable=True)       # palabras/frases a usar
     marca_palabras_no = Column(Text, nullable=True)       # palabras/frases a evitar
     marca_competidores = Column(Text, nullable=True)      # competidores de referencia
+    sitio_web          = Column(Text, nullable=True)
 
     ad_accounts     = relationship("AdAccount", back_populates="client")
     alerts          = relationship("Alert", back_populates="client")
@@ -64,6 +65,7 @@ class AdAccount(Base):
     meta_ig_account_id = Column(String, nullable=True)        # ID de cuenta de Instagram Business
     campaign_filter    = Column(String, nullable=True)        # Filtro por nombre de campaña (para clientes dentro de un mismo ad account)
     brand_data         = Column(JSON, nullable=True)          # Perfil de marca propio de esta cuenta (override del cliente)
+    sitio_web          = Column(Text, nullable=True)
     client             = relationship("Client", back_populates="ad_accounts")
 
 

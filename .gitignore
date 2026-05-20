@@ -1,5 +1,8 @@
 .env
 *.env
+*.db
+backend/venv/
+frontend/node_modules/
 google-analytics-credentials.json
 !vercel.json
 .vercel

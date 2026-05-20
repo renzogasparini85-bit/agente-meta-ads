@@ -25,12 +25,13 @@ from routers.benchmarks import router as benchmarks_router
 from routers.smart_alerts import router as smart_alerts_router
 from routers.client_view import router as client_view_router
 from routers.creative_analyze import router as creative_analyze_router
+from routers.pixel import router as pixel_router
 
 app = FastAPI(title="Meta Ads AI — Backend", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:4173", os.getenv("FRONTEND_URL", "")],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:4173", os.getenv("FRONTEND_URL", "")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -54,6 +55,7 @@ app.include_router(benchmarks_router)
 app.include_router(smart_alerts_router)
 app.include_router(client_view_router)
 app.include_router(creative_analyze_router)
+app.include_router(pixel_router)
 
 
 @app.on_event("startup")

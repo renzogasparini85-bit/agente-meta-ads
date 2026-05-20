@@ -1,10 +1,11 @@
-import { LayoutDashboard, Megaphone, Image, TrendingUp, Bell, Sparkles, LogOut, Menu, X, Settings, Building2, ChevronDown, Plus, Leaf, BarChart2, Clock, Award } from 'lucide-react'
+import { LayoutDashboard, Megaphone, Image, TrendingUp, Bell, Sparkles, LogOut, Menu, X, Settings, Building2, ChevronDown, Plus, Leaf, BarChart2, Clock, Award, Globe } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useAccount } from '../context/AccountContext'
 import Configuracion from '../pages/Configuracion'
 import PerfilMarca from '../pages/PerfilMarca'
 import GestionCuentas from '../pages/GestionCuentas'
+import PixelMeta from '../pages/PixelMeta'
 
 const nav = [
   { id: 'overview',        label: 'Overview',           icon: LayoutDashboard },
@@ -82,6 +83,7 @@ export default function Sidebar({ active, onNavigate }) {
   const [showConfig, setShowConfig] = useState(false)
   const [showMarca, setShowMarca]   = useState(false)
   const [showCuentas, setShowCuentas] = useState(false)
+  const [showPixel, setShowPixel]   = useState(false)
   const { client, logout }        = useAuth()
 
   const NavLinks = () => (
@@ -165,6 +167,13 @@ export default function Sidebar({ active, onNavigate }) {
               <span className="flex-1 text-left">Perfil de Marca</span>
               <span className="text-slate-600 text-xs">IA</span>
             </button>
+            <button
+              onClick={() => setShowPixel(true)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+            >
+              <Globe size={18} />
+              <span className="flex-1 text-left">Pixel de Meta</span>
+            </button>
           </div>
         </nav>
 
@@ -191,6 +200,7 @@ export default function Sidebar({ active, onNavigate }) {
       {showConfig  && <Configuracion   onClose={() => setShowConfig(false)} />}
       {showMarca   && <PerfilMarca     onClose={() => setShowMarca(false)} />}
       {showCuentas && <GestionCuentas  onClose={() => setShowCuentas(false)} />}
+      {showPixel   && <PixelMeta       onClose={() => setShowPixel(false)} />}
     </>
   )
 }

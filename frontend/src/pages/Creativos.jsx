@@ -92,10 +92,23 @@ function ModalVariacionPaid({ ad, onClose, nombreCuenta }) {
     try {
       let perfil = ''
       try { const b = await brandAPI.get(account?.id); perfil = JSON.stringify(b) } catch (_) {}
+      const contexto = [
+        `Nombre del anuncio: ${ad.nombre || ''}`,
+        ad.badge     ? `Clasificación actual: ${ad.badge}` : '',
+        ad.gasto     ? `Inversión: $${ad.gasto}` : '',
+        ad.cpa       ? `CPA: $${ad.cpa}` : '',
+        ad.ctr       ? `CTR: ${ad.ctr}%` : '',
+        ad.conversaciones ? `Conversiones: ${ad.conversaciones}` : '',
+        ad.frecuencia ? `Frecuencia: ${ad.frecuencia}` : '',
+        ad.segmento  ? `Segmento FTIR: ${ad.segmento}` : '',
+        ad.ftir      ? `FTIR: ${ad.ftir}%` : '',
+        ad.dias_activo ? `Días activo: ${ad.dias_activo}` : '',
+      ].filter(Boolean).join('\n')
+
       const res = await recommendationsAPI.copy({
         angulo,
         formato_salida:  formato,
-        tema:            String(ad.nombre || ''),
+        tema:            contexto,
         perfil_marca:    perfil,
         nombre_cuenta:   String(nombreCuenta || ''),
       })
