@@ -71,6 +71,14 @@ export const campaignsAPI = {
     api.post(`/campaigns/ads/${adId}/pause`).then((r) => r.data),
   createDraft: (data) =>
     api.post('/campaigns/draft', data).then((r) => r.data),
+  createAdset: (data) =>
+    api.post('/campaigns/adsets', data).then((r) => r.data),
+  createAd: (data) =>
+    api.post('/campaigns/ads', data).then((r) => r.data),
+  getSavedAudiences: (accountId) =>
+    api.get('/campaigns/saved-audiences', { params: accountId ? { account_id: String(accountId) } : {} }).then((r) => r.data),
+  getAdImages: (accountId) =>
+    api.get('/campaigns/ad-images', { params: accountId ? { account_id: String(accountId) } : {} }).then((r) => r.data),
   tree: (days = 30, accountId) => {
     const p = accountId ? `?days=${days}&account_id=${accountId}` : `?days=${days}`
     return api.get(`/campaigns/tree${p}`).then(r => r.data)

@@ -10,6 +10,8 @@ from services.meta_api import (
     create_campaign_draft,
     extract_conversions, compute_cpa,
     get_hierarchy_tree,
+    create_adset, create_ad, create_ad_creative,
+    get_saved_audiences, get_ad_images,
 )
 from routers.creatives import compute_roas_hibrido, compute_ftir, extract_marca
 from routers.account_resolver import resolve_account
@@ -183,6 +185,154 @@ async def pause_ad_endpoint(
     return {"ok": True, "meta_response": result}
 
 
+@router.get("/saved-audiences")
+async def saved_audiences(
+    account_id: str = Query(None),
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    ad_account_id, token, _, _, _ = resolve_account(client, account_id, db)
+    audiences = await get_saved_audiences(ad_account_id, token)
+    return {"data": audiences}
+
+
+@router.get("/ad-images")
+async def ad_images(
+    account_id: str = Query(None),
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    ad_account_id, token, _, _, _ = resolve_account(client, account_id, db)
+    images = await get_ad_images(ad_account_id, token)
+    return {"data": images}
+
+
+class CreateAdsetRequest(BaseModel):
+    campaign_id: str
+    nombre: str
+    presupuesto_diario: int
+    optimization_goal: str = "CONVERSATIONS"
+    billing_event: str = "IMPRESSIONS"
+    destination_type: str = "MESSENGER"
+    audience_type: str = "advantage"
+    saved_audience_id: str = None
+    age_min: int = 18
+    age_max: int = 65
+    genders: list = []
+    countries: list = ["AR"]
+    interests: list = []
+    account_id: str = None
+
+
+@router.post("/adsets")
+async def create_adset_endpoint(
+    body: CreateAdsetRequest,
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    ad_account_id, token, _, _, _ = resolve_account(client, body.account_id, db)
+
+    if body.audience_type == "advantage":
+        targeting = {}
+    elif body.audience_type == "saved" and body.saved_audience_id:
+        targeting = {"custom_audiences": [{"id": body.saved_audience_id}]}
+    else:
+        targeting = {
+            "age_min": body.age_min,
+            "age_max": body.age_max,
+            "geo_locations": {"countries": body.countries},
+        }
+        if body.genders:
+            targeting["genders"] = body.genders
+        if body.interests:
+            targeting["flexible_spec"] = [{"interests": body.interests}]
+
+    try:
+        result = await create_adset(
+            ad_account_id, token,
+            campaign_id=body.campaign_id,
+            name=body.nombre,
+            daily_budget=body.presupuesto_diario,
+            optimization_goal=body.optimization_goal,
+            billing_event=body.billing_event,
+            targeting=targeting,
+            destination_type=body.destination_type,
+        )
+    except Exception as e:
+        detail = str(e)
+        try:
+            import httpx as _httpx
+            if isinstance(e, _httpx.HTTPStatusError):
+                meta_err = e.response.json().get("error", {})
+                detail = meta_err.get("error_user_msg") or meta_err.get("message") or detail
+        except Exception:
+            pass
+        raise HTTPException(status_code=502, detail=detail)
+
+    return {"ok": True, "adset_id": result.get("id")}
+
+
+class CreateAdRequest(BaseModel):
+    adset_id: str
+    nombre: str
+    page_id: str = None
+    message: str = ""
+    headline: str = ""
+    description: str = ""
+    call_to_action: str = "MESSAGE_PAGE"
+    image_hash: str = None
+    link_url: str = None
+    whatsapp_number: str = None
+    account_id: str = None
+
+
+@router.post("/ads")
+async def create_ad_endpoint(
+    body: CreateAdRequest,
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    ad_account_id, token, _, _, account_row = resolve_account(client, body.account_id, db)
+
+    page_id = body.page_id
+    if not page_id and account_row:
+        page_id = getattr(account_row, "meta_page_id", None)
+    if not page_id:
+        page_id = client.meta_ad_account_id
+
+    try:
+        creative = await create_ad_creative(
+            ad_account_id, token,
+            name=f"Creativo — {body.nombre}",
+            page_id=page_id,
+            image_hash=body.image_hash,
+            message=body.message,
+            headline=body.headline,
+            description=body.description,
+            call_to_action_type=body.call_to_action,
+            link_url=body.link_url,
+            whatsapp_number=body.whatsapp_number,
+        )
+        ad = await create_ad(
+            ad_account_id, token,
+            adset_id=body.adset_id,
+            creative_id=creative.get("id"),
+            name=body.nombre,
+        )
+    except Exception as e:
+        detail = str(e)
+        try:
+            import httpx as _httpx
+            if isinstance(e, _httpx.HTTPStatusError):
+                meta_err = e.response.json().get("error", {})
+                detail = meta_err.get("error_user_msg") or meta_err.get("message") or detail
+        except Exception:
+            pass
+        raise HTTPException(status_code=502, detail=detail)
+
+    return {"ok": True, "ad_id": ad.get("id"), "creative_id": creative.get("id")}
+
+
 class CreateCampaignRequest(BaseModel):
     nombre: str
     objetivo: str = "MESSAGES"
@@ -212,7 +362,15 @@ async def create_draft(
                 body.presupuesto_diario,
             )
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Error Meta API: {str(e)}")
+            detail = str(e)
+            try:
+                import httpx as _httpx
+                if isinstance(e, _httpx.HTTPStatusError):
+                    meta_err = e.response.json().get("error", {})
+                    detail = meta_err.get("error_user_msg") or meta_err.get("message") or detail
+            except Exception:
+                pass
+            raise HTTPException(status_code=502, detail=detail)
 
     log = ActionLog(
         client_id=client.id,

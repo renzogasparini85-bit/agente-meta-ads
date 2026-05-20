@@ -156,19 +156,159 @@ async def pause_campaign(campaign_id: str, token: str) -> dict:
     return await meta_post(campaign_id, {"status": "PAUSED"}, token)
 
 
-async def create_campaign_draft(account_id: str, token: str, name: str, objective: str, daily_budget: int) -> dict:
-    """Crea una campaña en estado PAUSED. El usuario la activa manualmente desde Meta."""
+async def get_saved_audiences(account_id: str, token: str) -> list:
+    """Retorna audiencias guardadas de la cuenta."""
+    try:
+        data = await meta_get(
+            f"{account_id}/saved_audiences",
+            {"fields": "id,name,approximate_count_lower_bound", "limit": "50"},
+            token,
+        )
+        return data.get("data", [])
+    except Exception:
+        return []
+
+
+async def get_ad_images(account_id: str, token: str) -> list:
+    """Retorna imágenes de la biblioteca de la cuenta."""
+    try:
+        data = await meta_get(
+            f"{account_id}/adimages",
+            {"fields": "hash,name,url,url_128", "limit": "50"},
+            token,
+        )
+        return data.get("data", [])
+    except Exception:
+        return []
+
+
+async def get_whatsapp_numbers(page_id: str, token: str) -> list:
+    """Retorna números de WhatsApp vinculados a la página."""
+    try:
+        data = await meta_get(
+            f"{page_id}/whatsapp_business_phones",
+            {"fields": "display_phone_number,verified_name"},
+            token,
+        )
+        return data.get("data", [])
+    except Exception:
+        return []
+
+
+async def create_adset(
+    account_id: str,
+    token: str,
+    campaign_id: str,
+    name: str,
+    daily_budget: int,
+    optimization_goal: str,
+    billing_event: str,
+    targeting: dict,
+    destination_type: str,
+    start_time: str = None,
+    end_time: str = None,
+) -> dict:
+    """
+    Crea un conjunto de anuncios.
+    targeting puede ser {} para Advantage+ o un dict con age_min, age_max,
+    geo_locations, flexible_spec (intereses), custom_audiences (públicos guardados).
+    """
+    payload = {
+        "name": name,
+        "campaign_id": campaign_id,
+        "daily_budget": str(daily_budget * 100),
+        "optimization_goal": optimization_goal,
+        "billing_event": billing_event,
+        "targeting": json.dumps(targeting) if targeting else json.dumps({"age_min": 18, "age_max": 65, "geo_locations": {"countries": ["AR"]}}),
+        "destination_type": destination_type,
+        "status": "PAUSED",
+    }
+    if start_time:
+        payload["start_time"] = start_time
+    if end_time:
+        payload["end_time"] = end_time
+
+    return await meta_post(f"{account_id}/adsets", payload, token)
+
+
+async def create_ad_creative(
+    account_id: str,
+    token: str,
+    name: str,
+    page_id: str,
+    image_hash: str = None,
+    image_url: str = None,
+    message: str = "",
+    headline: str = "",
+    description: str = "",
+    call_to_action_type: str = "MESSAGE_PAGE",
+    link_url: str = None,
+    whatsapp_number: str = None,
+) -> dict:
+    """Crea el creativo del anuncio."""
+    if whatsapp_number and not link_url:
+        link = f"https://wa.me/{whatsapp_number}"
+    elif link_url:
+        link = link_url
+    else:
+        link = "https://facebook.com"
+
+    object_story_spec = {
+        "page_id": page_id,
+        "link_story_spec": {
+            "link": link,
+            "message": message,
+            "name": headline,
+            "description": description,
+            "call_to_action": {"type": call_to_action_type},
+        }
+    }
+    if image_hash:
+        object_story_spec["link_story_spec"]["image_hash"] = image_hash
+
     return await meta_post(
-        f"{account_id}/campaigns",
+        f"{account_id}/adcreatives",
+        {"name": name, "object_story_spec": json.dumps(object_story_spec)},
+        token,
+    )
+
+
+async def create_ad(
+    account_id: str,
+    token: str,
+    adset_id: str,
+    creative_id: str,
+    name: str,
+) -> dict:
+    """Crea el anuncio vinculando adset y creativo."""
+    return await meta_post(
+        f"{account_id}/ads",
         {
             "name": name,
-            "objective": objective,
+            "adset_id": adset_id,
+            "creative": json.dumps({"creative_id": creative_id}),
             "status": "PAUSED",
-            "special_ad_categories": "[]",
-            "daily_budget": str(daily_budget * 100),  # Meta usa centavos
         },
         token,
     )
+
+
+async def create_campaign_draft(account_id: str, token: str, name: str, objective: str, daily_budget: int) -> dict:
+    """Crea una campaña en estado PAUSED. El usuario la activa manualmente desde Meta."""
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(
+            f"{META_BASE}/{account_id}/campaigns",
+            params={"access_token": token},
+            json={
+                "name": name,
+                "objective": objective,
+                "status": "PAUSED",
+                "special_ad_categories": [],
+                "daily_budget": daily_budget * 100,  # Meta usa centavos
+            },
+        )
+        r.raise_for_status()
+        return r.json()
 
 
 CONVERSION_TYPES = {
