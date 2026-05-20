@@ -183,7 +183,24 @@ async def get_ad_images(account_id: str, token: str) -> list:
 
 
 async def get_whatsapp_numbers(page_id: str, token: str) -> list:
-    """Retorna números de WhatsApp vinculados a la página."""
+    """
+    Retorna números de WhatsApp de la página.
+    Primero intenta el campo whatsapp_number de la página;
+    si falla o no tiene, intenta whatsapp_business_phones.
+    """
+    try:
+        page = await meta_get(
+            page_id,
+            {"fields": "id,name,whatsapp_number"},
+            token,
+        )
+        wa = page.get("whatsapp_number")
+        if wa:
+            name = page.get("name", "Página")
+            digits = "".join(c for c in wa if c.isdigit())
+            return [{"display_phone_number": wa, "verified_name": name, "digits": digits}]
+    except Exception:
+        pass
     try:
         data = await meta_get(
             f"{page_id}/whatsapp_business_phones",

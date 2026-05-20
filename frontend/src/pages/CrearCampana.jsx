@@ -62,23 +62,35 @@ function Field({ label, children }) {
 function WhatsappNumberSelector({ accountId, value, onChange }) {
   const [numbers, setNumbers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [hint, setHint] = useState(null)
+
   useEffect(() => {
+    setLoading(true)
     campaignsAPI.getWhatsappNumbers(accountId)
-      .then(r => setNumbers(r.data || []))
+      .then(r => {
+        setNumbers(r.data || [])
+        if ((r.data || []).length === 0 && r.pages_available?.length > 0) {
+          setHint(`Páginas encontradas sin WA vinculado: ${r.pages_available.map(p => p.name).join(', ')}. Vinculá WhatsApp desde Meta Business Suite.`)
+        }
+      })
       .catch(() => setNumbers([]))
       .finally(() => setLoading(false))
   }, [accountId])
 
-  if (loading) return <p className="text-slate-500 text-xs py-1">Cargando números de WhatsApp…</p>
+  if (loading) {
+    return <p className="text-slate-500 text-xs py-1">Cargando números de WhatsApp desde Meta…</p>
+  }
 
   if (numbers.length === 0) {
     return (
       <Field label="Número de WhatsApp">
         <input value={value}
-          onChange={e => onChange(e.target.value)}
+          onChange={e => onChange(e.target.value.replace(/\D/g, ''))}
           placeholder="5491112345678"
           className={inputCls} />
-        <p className="text-slate-600 text-xs mt-1">No se encontraron números vinculados a la página. Ingresá manualmente: 549 + código de área + número.</p>
+        <p className="text-slate-600 text-xs mt-1">
+          {hint || 'No se encontró un número de WhatsApp vinculado a esta página. Ingresá manualmente: 549 + código de área + número (sin +, espacios ni guiones).'}
+        </p>
       </Field>
     )
   }
@@ -87,11 +99,14 @@ function WhatsappNumberSelector({ accountId, value, onChange }) {
     <Field label="Número de WhatsApp">
       <select value={value} onChange={e => onChange(e.target.value)} className={inputCls}>
         <option value="">Seleccioná un número…</option>
-        {numbers.map(n => (
-          <option key={n.display_phone_number} value={n.display_phone_number.replace(/\D/g, '')}>
-            {n.verified_name} — {n.display_phone_number}
-          </option>
-        ))}
+        {numbers.map(n => {
+          const digits = n.digits || n.display_phone_number.replace(/\D/g, '')
+          return (
+            <option key={digits} value={digits}>
+              {n.verified_name} — {n.display_phone_number}
+            </option>
+          )
+        })}
       </select>
     </Field>
   )

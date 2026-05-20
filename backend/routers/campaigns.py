@@ -214,10 +214,26 @@ async def whatsapp_numbers(
     db: Session = Depends(get_db),
 ):
     """Retorna los números de WhatsApp vinculados a la página de Meta de la cuenta."""
+    from services.meta_api import meta_get
     ad_account_id, token, _, _, account_row = resolve_account(client, account_id, db)
+    if token == "DEMO":
+        return {"data": [], "page_id": None}
+
     page_id = getattr(account_row, "meta_page_id", None) if account_row else None
+
+    # Si no hay page_id configurado, buscar páginas del usuario y probar la primera
     if not page_id:
-        page_id = client.meta_ad_account_id
+        try:
+            pages = await meta_get("me/accounts", {"fields": "id,name,whatsapp_number", "limit": "10"}, token)
+            for p in pages.get("data", []):
+                if p.get("whatsapp_number"):
+                    numbers = await get_whatsapp_numbers(p["id"], token)
+                    return {"data": numbers, "page_id": p["id"], "page_name": p.get("name")}
+            # Ninguna página tiene WA — devolver lista vacía con las páginas disponibles
+            return {"data": [], "page_id": None, "pages_available": [{"id": p["id"], "name": p.get("name")} for p in pages.get("data", [])]}
+        except Exception as e:
+            return {"data": [], "page_id": None}
+
     numbers = await get_whatsapp_numbers(page_id, token)
     return {"data": numbers, "page_id": page_id}
 
