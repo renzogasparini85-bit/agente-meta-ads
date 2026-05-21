@@ -262,7 +262,7 @@ async def create_adset_endpoint(
     client: Client = Depends(get_current_client),
     db: Session = Depends(get_db),
 ):
-    ad_account_id, token, _, _, _ = resolve_account(client, body.account_id, db)
+    ad_account_id, token, _, _, account_row = resolve_account(client, body.account_id, db)
 
     if body.audience_type == "advantage":
         targeting = {}
