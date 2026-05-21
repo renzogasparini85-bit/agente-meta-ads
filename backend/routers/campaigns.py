@@ -278,6 +278,8 @@ async def create_adset_endpoint(
         if body.interests:
             targeting["flexible_spec"] = [{"interests": body.interests}]
 
+    page_id = getattr(account_row, "meta_page_id", None) if account_row else None
+
     try:
         result = await create_adset(
             ad_account_id, token,
@@ -288,6 +290,7 @@ async def create_adset_endpoint(
             billing_event=body.billing_event,
             targeting=targeting,
             destination_type=body.destination_type,
+            page_id=page_id,
         )
     except Exception as e:
         detail = str(e)

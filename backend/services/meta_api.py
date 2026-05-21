@@ -222,6 +222,7 @@ async def create_adset(
     billing_event: str,
     targeting: dict,
     destination_type: str,
+    page_id: str = None,
     start_time: str = None,
     end_time: str = None,
 ) -> dict:
@@ -230,22 +231,32 @@ async def create_adset(
     targeting puede ser {} para Advantage+ o un dict con age_min, age_max,
     geo_locations, flexible_spec (intereses), custom_audiences (públicos guardados).
     """
-    payload = {
+    # Con CBO el presupuesto va en la campaña; el adset no lleva daily_budget
+    t = targeting if targeting else {"age_min": 18, "age_max": 65, "geo_locations": {"countries": ["AR"]}}
+    body: dict = {
         "name": name,
         "campaign_id": campaign_id,
-        "daily_budget": str(daily_budget * 100),
         "optimization_goal": optimization_goal,
         "billing_event": billing_event,
-        "targeting": json.dumps(targeting) if targeting else json.dumps({"age_min": 18, "age_max": 65, "geo_locations": {"countries": ["AR"]}}),
+        "targeting": t,
         "destination_type": destination_type,
         "status": "PAUSED",
     }
+    if page_id:
+        body["promoted_object"] = {"page_id": page_id}
     if start_time:
-        payload["start_time"] = start_time
+        body["start_time"] = start_time
     if end_time:
-        payload["end_time"] = end_time
+        body["end_time"] = end_time
 
-    return await meta_post(f"{account_id}/adsets", payload, token)
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(
+            f"{META_BASE}/{account_id}/adsets",
+            params={"access_token": token},
+            json=body,
+        )
+        r.raise_for_status()
+        return r.json()
 
 
 async def create_ad_creative(
@@ -311,7 +322,10 @@ async def create_ad(
 
 
 async def create_campaign_draft(account_id: str, token: str, name: str, objective: str, daily_budget: int) -> dict:
-    """Crea una campaña en estado PAUSED. El usuario la activa manualmente desde Meta."""
+    """
+    Crea una campaña en estado PAUSED con CBO (Campaign Budget Optimization).
+    El presupuesto se gestiona a nivel campaña; los adsets no llevan daily_budget propio.
+    """
     async with httpx.AsyncClient(timeout=20) as client:
         r = await client.post(
             f"{META_BASE}/{account_id}/campaigns",
@@ -322,6 +336,7 @@ async def create_campaign_draft(account_id: str, token: str, name: str, objectiv
                 "status": "PAUSED",
                 "special_ad_categories": [],
                 "daily_budget": daily_budget * 100,  # Meta usa centavos
+                "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
             },
         )
         r.raise_for_status()
