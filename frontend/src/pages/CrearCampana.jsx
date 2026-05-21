@@ -1,6 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Component } from 'react'
 import { X, CheckCircle } from 'lucide-react'
 import { campaignsAPI } from '../services/api'
+
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(e) { return { error: e } }
+  render() {
+    if (this.state.error) return (
+      <div className="p-6 text-red-400 text-sm space-y-2">
+        <p className="font-bold">Error en el wizard:</p>
+        <pre className="text-xs bg-red-500/10 rounded p-3 overflow-auto whitespace-pre-wrap">{this.state.error?.message}\n{this.state.error?.stack}</pre>
+        <button onClick={() => this.setState({ error: null })} className="text-xs underline">Reintentar</button>
+      </div>
+    )
+    return this.props.children
+  }
+}
 
 const OBJETIVOS = [
   { value: 'OUTCOME_LEADS',         label: 'Clientes potenciales' },
@@ -49,6 +64,14 @@ const DESTINO_LABELS = {
 }
 
 const inputCls = 'w-full bg-bg border border-border rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500/50 transition-colors'
+
+const parseError = (e) => {
+  const detail = e?.response?.data?.detail
+  if (!detail) return e?.message || 'Error desconocido'
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) return detail.map(d => d.msg || JSON.stringify(d)).join(' · ')
+  return JSON.stringify(detail)
+}
 
 function Field({ label, children }) {
   return (
@@ -234,7 +257,7 @@ export default function CrearCampana({ onClose, onCreated, account }) {
       setCampanaId(res.campaign_id)
       setStep(2)
     } catch (e) {
-      setError(e?.response?.data?.detail || 'Error al crear la campaña')
+      setError(parseError(e) || 'Error al crear la campaña')
     } finally { setCreando(false) }
   }
 
@@ -264,7 +287,7 @@ export default function CrearCampana({ onClose, onCreated, account }) {
       setAdsetId(res.adset_id)
       setStep(3)
     } catch (e) {
-      setError(e?.response?.data?.detail || 'Error al crear el conjunto de anuncios')
+      setError(parseError(e) || 'Error al crear el conjunto de anuncios')
     } finally { setCreando(false) }
   }
 
@@ -287,7 +310,7 @@ export default function CrearCampana({ onClose, onCreated, account }) {
       setAdId(res.ad_id)
       setStep(4)
     } catch (e) {
-      setError(e?.response?.data?.detail || 'Error al crear el anuncio')
+      setError(parseError(e) || 'Error al crear el anuncio')
     } finally { setCreando(false) }
   }
 
@@ -296,6 +319,7 @@ export default function CrearCampana({ onClose, onCreated, account }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
       <div className="bg-card border border-border rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl">
+      <ErrorBoundary>
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border">
@@ -536,6 +560,7 @@ export default function CrearCampana({ onClose, onCreated, account }) {
           </div>
         )}
 
+      </ErrorBoundary>
       </div>
     </div>
   )

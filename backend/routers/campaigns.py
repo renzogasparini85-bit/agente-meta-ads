@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from typing import Optional, List
 from database import get_db, Client, ActionLog
 from auth import get_current_client
 from services.meta_objectives import label_objetivo
@@ -246,13 +247,13 @@ class CreateAdsetRequest(BaseModel):
     billing_event: str = "IMPRESSIONS"
     destination_type: str = "MESSENGER"
     audience_type: str = "advantage"
-    saved_audience_id: str = None
+    saved_audience_id: Optional[str] = None
     age_min: int = 18
     age_max: int = 65
-    genders: list = []
-    countries: list = ["AR"]
-    interests: list = []
-    account_id: str = None
+    genders: List[int] = []
+    countries: List[str] = ["AR"]
+    interests: List = []
+    account_id: Optional[str] = None
 
 
 @router.post("/adsets")
@@ -309,15 +310,15 @@ async def create_adset_endpoint(
 class CreateAdRequest(BaseModel):
     adset_id: str
     nombre: str
-    page_id: str = None
+    page_id: Optional[str] = None
     message: str = ""
     headline: str = ""
     description: str = ""
     call_to_action: str = "MESSAGE_PAGE"
-    image_hash: str = None
-    link_url: str = None
-    whatsapp_number: str = None
-    account_id: str = None
+    image_hash: Optional[str] = None
+    link_url: Optional[str] = None
+    whatsapp_number: Optional[str] = None
+    account_id: Optional[str] = None
 
 
 @router.post("/ads")
