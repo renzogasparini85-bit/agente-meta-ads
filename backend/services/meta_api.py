@@ -277,28 +277,37 @@ async def create_ad_creative(
     if link_url:
         link = link_url
     elif whatsapp_number:
-        link = f"https://wa.me/{whatsapp_number}"
+        link = f"https://api.whatsapp.com/send?phone={whatsapp_number}"
     else:
-        link = f"https://www.facebook.com/{page_id}"
+        link = "https://api.whatsapp.com/send?phone=549"
+
+    link_data: dict = {
+        "link":    link,
+        "message": message,
+        "name":    headline,
+        "call_to_action": {
+            "type":  call_to_action_type,
+            "value": {"app_destination": "WHATSAPP"} if "WHATSAPP" in call_to_action_type else {},
+        },
+    }
+    if description:
+        link_data["description"] = description
+    if image_hash:
+        link_data["image_hash"] = image_hash
 
     object_story_spec = {
-        "page_id": page_id,
-        "link_story_spec": {
-            "link": link,
-            "message": message,
-            "name": headline,
-            "description": description,
-            "call_to_action": {"type": call_to_action_type},
-        }
+        "page_id":   page_id,
+        "link_data": link_data,
     }
-    if image_hash:
-        object_story_spec["link_story_spec"]["image_hash"] = image_hash
 
-    return await meta_post(
-        f"{account_id}/adcreatives",
-        {"name": name, "object_story_spec": json.dumps(object_story_spec)},
-        token,
-    )
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(
+            f"{META_BASE}/{account_id}/adcreatives",
+            params={"access_token": token},
+            json={"name": name, "object_story_spec": object_story_spec},
+        )
+        r.raise_for_status()
+        return r.json()
 
 
 async def create_ad(
