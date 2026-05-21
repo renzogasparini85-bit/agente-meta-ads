@@ -410,14 +410,6 @@ export default function CrearCampana({ onClose, onCreated, account }) {
               <ManualAudienceFields form={form} setForm={setForm} />
             )}
 
-            {form.destino === 'WHATSAPP' && (
-              <WhatsappNumberSelector
-                accountId={account?.id}
-                value={form.whatsapp_number}
-                onChange={n => setForm(f => ({ ...f, whatsapp_number: n }))}
-              />
-            )}
-
             {form.destino === 'WEBSITE' && (
               <Field label="URL de destino">
                 <input value={form.link_url}

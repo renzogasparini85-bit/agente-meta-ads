@@ -263,12 +263,12 @@ async def create_ad_creative(
     whatsapp_number: str = None,
 ) -> dict:
     """Crea el creativo del anuncio."""
-    if whatsapp_number and not link_url:
-        link = f"https://wa.me/{whatsapp_number}"
-    elif link_url:
+    if link_url:
         link = link_url
+    elif whatsapp_number:
+        link = f"https://wa.me/{whatsapp_number}"
     else:
-        link = "https://facebook.com"
+        link = f"https://www.facebook.com/{page_id}"
 
     object_story_spec = {
         "page_id": page_id,
