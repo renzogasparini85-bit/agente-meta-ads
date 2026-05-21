@@ -111,7 +111,7 @@ export default function Campanas() {
 
   return (
     <div className="space-y-5">
-      {showCrear && <CrearCampana onClose={() => setShowCrear(false)} onCreated={() => { setShowCrear(false); refetch() }} />}
+      {showCrear && <CrearCampana onClose={() => setShowCrear(false)} onCreated={() => { setShowCrear(false); refetch() }} account={account} />}
 
       <div className="flex items-start justify-between">
         <div>
