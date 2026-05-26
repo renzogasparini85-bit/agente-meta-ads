@@ -97,7 +97,7 @@ export default function Historial() {
       {rows.length === 0 && (
         <div className="bg-surface border border-border rounded-xl px-6 py-12 text-center">
           <p className="text-slate-400 text-sm">Sin datos para este período</p>
-          <p className="text-slate-600 text-xs mt-2">Meta tarda algunas horas en consolidar el reporte del día.</p>
+          <p className="text-slate-400 text-xs mt-2">Meta tarda algunas horas en consolidar el reporte del día.</p>
         </div>
       )}
 
@@ -172,7 +172,7 @@ export default function Historial() {
                     activeDot={{ r: 5, fill: '#F59E0B' }} />
                 </LineChart>
               </ResponsiveContainer>
-              <p className="text-slate-600 text-xs mt-2">Frecuencia &gt; 2.2 → riesgo de fatiga creativa. &gt; 3.0 → pausar anuncio.</p>
+              <p className="text-slate-400 text-xs mt-2">Frecuencia &gt; 2.2 → riesgo de fatiga creativa. &gt; 3.0 → pausar anuncio.</p>
             </div>
           </div>
         </>

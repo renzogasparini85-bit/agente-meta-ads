@@ -1,4 +1,4 @@
-import { LayoutDashboard, Megaphone, Image, TrendingUp, Bell, Sparkles, LogOut, Menu, X, Settings, Building2, ChevronDown, Plus, Leaf, BarChart2, Clock, Award, Globe } from 'lucide-react'
+import { LayoutDashboard, Megaphone, Image, TrendingUp, Bell, Sparkles, LogOut, Menu, X, Settings, Building2, ChevronDown, Plus, Leaf, BarChart2, Clock, Award, Globe, Target } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useAccount } from '../context/AccountContext'
@@ -11,6 +11,7 @@ const nav = [
   { id: 'overview',        label: 'Overview',           icon: LayoutDashboard },
   { id: 'campanas',        label: 'Campañas',            icon: Megaphone },
   { id: 'creativos',       label: 'Creativos',           icon: Image },
+  { id: 'estrategia',     label: 'Estrategia',          icon: Target },
   { id: 'historial',       label: 'Historial',           icon: TrendingUp },
   { id: 'analytics',       label: 'Análisis Avanzado',   icon: BarChart2 },
   { id: 'benchmarks',      label: 'Benchmarks',          icon: Award },
@@ -59,7 +60,7 @@ function AccountSelector({ onManage }) {
               >
                 <div className={`w-2 h-2 rounded-full shrink-0 ${colorMap[acc.color] || 'bg-violet-DEFAULT'}`} />
                 <span className="flex-1 text-left truncate">{acc.nombre}</span>
-                <span className="text-slate-600 font-mono">{acc.moneda}</span>
+                <span className="text-slate-400 font-mono">{acc.moneda}</span>
               </button>
             ))}
             <div className="border-t border-border">
@@ -128,8 +129,8 @@ export default function Sidebar({ active, onNavigate }) {
       {/* Mobile drawer */}
       {open && (
         <div className="md:hidden fixed inset-0 z-40 bg-black/60" onClick={() => setOpen(false)}>
-          <div className="absolute left-0 top-0 bottom-0 w-64 bg-surface border-r border-border p-4 pt-16" onClick={e => e.stopPropagation()}>
-            <nav className="flex flex-col gap-1 mt-4">
+          <div className="absolute left-0 top-0 bottom-0 w-64 bg-surface border-r border-border flex flex-col pt-16" onClick={e => e.stopPropagation()}>
+            <nav className="flex-1 flex flex-col gap-1 px-4 py-4 overflow-y-auto">
               <NavLinks />
             </nav>
           </div>
@@ -151,21 +152,23 @@ export default function Sidebar({ active, onNavigate }) {
 
         {/* Selector de cuenta */}
         <div className="pt-3">
-          <p className="text-slate-600 text-xs px-6 mb-1.5 font-medium uppercase tracking-wide">Cuenta activa</p>
+          <p className="text-slate-400 text-xs px-6 mb-1.5 font-medium uppercase tracking-wide">Cuenta activa</p>
           <AccountSelector onManage={() => setShowCuentas(true)} />
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 flex flex-col gap-1 px-3 py-2">
-          <NavLinks />
-          <div className="mt-auto pt-2 border-t border-border/50">
+        <nav className="flex-1 flex flex-col px-3 py-2 overflow-y-auto min-h-0">
+          <div className="flex flex-col gap-1">
+            <NavLinks />
+          </div>
+          <div className="mt-auto pt-2 border-t border-border/50 shrink-0">
             <button
               onClick={() => setShowMarca(true)}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
             >
               <Building2 size={18} />
               <span className="flex-1 text-left">Perfil de Marca</span>
-              <span className="text-slate-600 text-xs">IA</span>
+              <span className="text-slate-400 text-xs">IA</span>
             </button>
             <button
               onClick={() => setShowPixel(true)}
@@ -176,7 +179,6 @@ export default function Sidebar({ active, onNavigate }) {
             </button>
           </div>
         </nav>
-
         {/* User */}
         <div className="px-3 py-4 border-t border-border">
           <div className="flex items-center gap-3 px-3 py-2">

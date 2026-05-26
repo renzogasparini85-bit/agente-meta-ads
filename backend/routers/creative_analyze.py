@@ -6,6 +6,7 @@ POST /creative/analyze
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from pydantic import BaseModel
 from database import Client
 from auth import get_current_client
 import os, base64, json, mimetypes, tempfile, pathlib
@@ -244,6 +245,53 @@ async def analyze_creative(
         err = str(e)
         if any(k in err.lower() for k in ("credit", "quota", "billing")):
             return _fallback_response(producto, formato)
+        raise HTTPException(status_code=500, detail=f"Error al analizar: {err}")
+
+
+class AnalyzeUrlRequest(BaseModel):
+    image_url: str
+    producto: str = ""
+    objetivo: str = "OUTCOME_LEADS"
+    tono: str = "cercano y directo"
+
+
+@router.post("/analyze-url")
+async def analyze_image_url(
+    body: AnalyzeUrlRequest,
+    client: Client = Depends(get_current_client),
+):
+    """Analiza una imagen a partir de su URL (sin subir archivo) usando Claude Vision."""
+    import httpx, asyncio
+
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return _fallback_response(body.producto, "imagen")
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as hclient:
+            r = await hclient.get(body.image_url)
+            r.raise_for_status()
+            data = r.content
+            content_type = r.headers.get("content-type", "image/jpeg").split(";")[0].strip()
+            if content_type not in ALLOWED_IMAGE_TYPES:
+                content_type = "image/jpeg"
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo descargar la imagen: {str(e)}")
+
+    try:
+        result = await asyncio.to_thread(
+            _analyze_image_claude, data, content_type,
+            body.producto, body.objetivo, body.tono
+        )
+        if result is None:
+            return _fallback_response(body.producto, "imagen")
+        return result
+    except (json.JSONDecodeError, ValueError):
+        return _fallback_response(body.producto, "imagen")
+    except Exception as e:
+        err = str(e)
+        if any(k in err.lower() for k in ("credit", "quota", "billing")):
+            return _fallback_response(body.producto, "imagen")
         raise HTTPException(status_code=500, detail=f"Error al analizar: {err}")
 
 

@@ -2,7 +2,7 @@ import { AlertTriangle, RefreshCw, TrendingDown, DollarSign, Pause, CheckCheck, 
 import { alertsAPI } from '../services/api'
 import { useFetch } from '../hooks/useFetch'
 import { PageLoading, ErrorState, Spinner } from '../components/LoadingState'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAccount } from '../context/AccountContext'
 
 const tipoConfig = {
@@ -34,6 +34,7 @@ export default function Alertas() {
   const [resolving, setResolving] = useState(null)
   const [scanning, setScanning] = useState(false)
   const [scanMsg, setScanMsg] = useState(null)
+  const [autoScanned, setAutoScanned] = useState(false)
 
   const handleScan = async () => {
     setScanning(true)
@@ -50,6 +51,14 @@ export default function Alertas() {
       setScanning(false)
     }
   }
+
+  // Auto-scan al cargar si no hay alertas aún
+  useEffect(() => {
+    if (!loading && !error && alerts && alerts.length === 0 && !autoScanned) {
+      setAutoScanned(true)
+      handleScan()
+    }
+  }, [loading, alerts])
 
   const handleResolve = async (id) => {
     setResolving(id)
@@ -70,13 +79,36 @@ export default function Alertas() {
   if (alerts?.length === 0) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-white text-2xl font-bold">Alertas</h1>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-white text-2xl font-bold">Alertas</h1>
+            <p className="text-slate-400 text-sm mt-1">Monitoreo automático de tus campañas</p>
+          </div>
+          <button onClick={handleScan} disabled={scanning}
+            className="flex items-center gap-2 px-3 py-2 bg-surface border border-border text-slate-300 text-sm font-medium rounded-lg hover:border-violet-DEFAULT/40 hover:text-white transition-all disabled:opacity-60 cursor-pointer shrink-0">
+            {scanning ? <Spinner size={14} /> : <ScanSearch size={14} />}
+            {scanning ? 'Analizando…' : 'Escanear ahora'}
+          </button>
         </div>
+        {scanMsg && (
+          <div className="px-4 py-2.5 rounded-lg border bg-violet-DEFAULT/10 border-violet-DEFAULT/20 text-violet-glow text-sm">
+            {scanMsg}
+          </div>
+        )}
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <CheckCheck size={40} className="text-green-400 mb-3" />
-          <p className="text-white font-medium">Sin alertas activas</p>
-          <p className="text-slate-500 text-sm mt-1">El agente no detectó problemas en tus campañas.</p>
+          {scanning ? (
+            <>
+              <Spinner size={32} className="text-violet-400 mb-3" />
+              <p className="text-white font-medium">Analizando tus campañas…</p>
+              <p className="text-slate-500 text-sm mt-1">Revisando frecuencia, CPA, CTR y conversiones.</p>
+            </>
+          ) : (
+            <>
+              <CheckCheck size={40} className="text-green-400 mb-3" />
+              <p className="text-white font-medium">Sin alertas activas</p>
+              <p className="text-slate-500 text-sm mt-1">El agente no detectó problemas en tus campañas.</p>
+            </>
+          )}
         </div>
       </div>
     )
@@ -159,7 +191,7 @@ export default function Alertas() {
                   <div className="flex items-center gap-4">
                     <Icon size={16} className={t.color} />
                     <p className="text-slate-400 text-sm flex-1 line-through">{a.mensaje}</p>
-                    <span className="text-xs text-slate-600">{timeAgo(a.creado_en)}</span>
+                    <span className="text-xs text-slate-400">{timeAgo(a.creado_en)}</span>
                   </div>
                 </div>
               )

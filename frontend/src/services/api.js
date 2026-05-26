@@ -43,9 +43,14 @@ export const dashboardAPI = {
 }
 
 const buildParams = (days, since, until, accountId) => {
-  const p = new URLSearchParams({ days })
-  if (since)     p.set('since', since)
-  if (until)     p.set('until', until)
+  const p = new URLSearchParams()
+  if (since && until) {
+    p.set('since', since)
+    p.set('until', until)
+    p.set('days', '30') // requerido por el backend, ignorado cuando hay since/until
+  } else {
+    p.set('days', days ?? 30)
+  }
   if (accountId) p.set('account_id', accountId)
   return p.toString()
 }
@@ -69,6 +74,16 @@ export const campaignsAPI = {
     api.post(`/campaigns/${campaignId}/pause`).then((r) => r.data),
   pauseAd: (adId) =>
     api.post(`/campaigns/ads/${adId}/pause`).then((r) => r.data),
+  scaleAdset: (adsetId, pct) =>
+    api.post(`/campaigns/adsets/${adsetId}/scale?pct=${pct}`).then((r) => r.data),
+  activateCampaign: (campaignId) =>
+    api.post(`/campaigns/${campaignId}/activate`).then((r) => r.data),
+  pauseAdset: (adsetId) =>
+    api.post(`/campaigns/adsets/${adsetId}/pause`).then((r) => r.data),
+  activateAdset: (adsetId) =>
+    api.post(`/campaigns/adsets/${adsetId}/activate`).then((r) => r.data),
+  activateAd: (adId) =>
+    api.post(`/campaigns/ads/${adId}/activate`).then((r) => r.data),
   createDraft: (data) =>
     api.post('/campaigns/draft', data).then((r) => r.data),
   createAdset: (data) =>
@@ -206,6 +221,19 @@ export const creativeAnalyzeAPI = {
     return api.post('/creative/analyze-transcript', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data)
+  },
+}
+
+export const strategyAPI = {
+  overview: (days = 30, accountId = null) => {
+    const p = new URLSearchParams({ days })
+    if (accountId) p.set('account_id', accountId)
+    return api.get(`/strategy/overview?${p}`).then(r => r.data)
+  },
+  informe: (accountId = null) => {
+    const p = new URLSearchParams()
+    if (accountId) p.set('account_id', accountId)
+    return api.post(`/strategy/informe?${p}`).then(r => r.data)
   },
 }
 

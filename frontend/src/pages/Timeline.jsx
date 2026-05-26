@@ -34,7 +34,7 @@ export default function Timeline() {
 
       {empty ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <Clock size={40} className="text-slate-600 mb-4" />
+          <Clock size={40} className="text-slate-400 mb-4" />
           <p className="text-white font-medium mb-1">Sin acciones registradas</p>
           <p className="text-slate-500 text-sm">Las pausas, escaladas y cambios de presupuesto aparecerán acá.</p>
         </div>
@@ -66,11 +66,11 @@ export default function Timeline() {
                           ? <CheckCircle size={12} className="text-green-400" />
                           : <XCircle size={12} className="text-red-400" />}
                       </div>
-                      <span className="text-slate-600 text-xs shrink-0">{fmtDate(log.ejecutado_en)}</span>
+                      <span className="text-slate-400 text-xs shrink-0">{fmtDate(log.ejecutado_en)}</span>
                     </div>
                     <p className="text-slate-300 text-sm">{log.descripcion}</p>
                     {log.meta_id && (
-                      <p className="text-slate-600 text-xs mt-1">ID: {log.meta_id}</p>
+                      <p className="text-slate-400 text-xs mt-1">ID: {log.meta_id}</p>
                     )}
                   </div>
                 </div>

@@ -344,7 +344,7 @@ function PostCard({ post, perfil, isGanador, nombreCuenta }) {
               <PostBadge type={post.badge} />
               {post.plataforma && <PlatBadge plat={post.plataforma} />}
             </div>
-            <span className="text-slate-600 text-xs shrink-0 ml-2">{post.fecha}</span>
+            <span className="text-slate-400 text-xs shrink-0 ml-2">{post.fecha}</span>
           </div>
           <p className="text-white text-sm font-semibold leading-snug line-clamp-2 mb-2" title={post.tema}>
             {post.tema}
@@ -420,7 +420,7 @@ function Metric({ icon: Icon, value, label, color }) {
     <div className="text-center">
       <Icon size={11} className={`mx-auto mb-0.5 ${color}`} />
       <p className={`text-sm font-bold ${color}`}>{value}</p>
-      <p className="text-slate-600 text-[10px]">{label}</p>
+      <p className="text-slate-400 text-[10px]">{label}</p>
     </div>
   )
 }
@@ -430,7 +430,7 @@ function EmptyTab({ text, sub }) {
   return (
     <div className="bg-surface border border-border rounded-xl px-6 py-12 text-center">
       <p className="text-slate-400 text-sm font-medium">{text}</p>
-      {sub && <p className="text-slate-600 text-xs mt-2 max-w-xs mx-auto">{sub}</p>}
+      {sub && <p className="text-slate-400 text-xs mt-2 max-w-xs mx-auto">{sub}</p>}
     </div>
   )
 }
@@ -466,7 +466,7 @@ function PorPlataformaView({ porPlataforma }) {
               <div className="flex items-center gap-2 mb-4">
                 <Icon size={16} className={cfg?.color} />
                 <p className={`font-semibold text-sm ${cfg?.color}`}>{r.red}</p>
-                <span className="text-slate-600 text-xs ml-auto">{r.count} posts</span>
+                <span className="text-slate-400 text-xs ml-auto">{r.count} posts</span>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {[
@@ -751,7 +751,7 @@ export default function Organico() {
       {posts.length === 0 && (
         <div className="bg-surface border border-border rounded-xl px-6 py-12 text-center">
           <p className="text-slate-400 text-sm">Sin posts para este período o formato</p>
-          <p className="text-slate-600 text-xs mt-2">Probá con un rango más amplio o seleccioná "Todos" en el filtro de formato.</p>
+          <p className="text-slate-400 text-xs mt-2">Probá con un rango más amplio o seleccioná "Todos" en el filtro de formato.</p>
         </div>
       )}
 
@@ -763,7 +763,7 @@ export default function Organico() {
               <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg border bg-green-400/5 border-green-400/20">
                 <Star size={13} className="text-green-400" />
                 <p className="text-green-400 text-xs font-semibold">Ganadores — replicar y crear variaciones</p>
-                <span className="text-slate-600 text-xs">— {ganadores.length} posts con engagement excepcional</span>
+                <span className="text-slate-400 text-xs">— {ganadores.length} posts con engagement excepcional</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {ganadores.map(p => <PostCard key={p.id} post={p} perfil={perfil} isGanador nombreCuenta={account?.nombre} />)}

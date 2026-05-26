@@ -188,7 +188,7 @@ export default function PerfilMarca({ onClose }) {
                       placeholder="Ej: Lush, Natura, The Body Shop — marcas que respetamos o contra las que competimos"
                       className={inputCls}
                     />
-                    <p className="text-slate-600 text-xs mt-1">La IA los usa como referencia de posicionamiento, no para copiarlos.</p>
+                    <p className="text-slate-400 text-xs mt-1">La IA los usa como referencia de posicionamiento, no para copiarlos.</p>
                   </Field>
                 </div>
               )}
@@ -264,7 +264,7 @@ export default function PerfilMarca({ onClose }) {
                       placeholder="Ej: Somos la única marca de cosméticos que publica el 100% de los ingredientes con su origen y función. No hay letra chica en nuestros productos."
                       className={inputCls}
                     />
-                    <p className="text-slate-600 text-xs mt-1">Una sola oración poderosa que nadie más pueda decir.</p>
+                    <p className="text-slate-400 text-xs mt-1">Una sola oración poderosa que nadie más pueda decir.</p>
                   </Field>
 
                   <Field label="Beneficios principales" hint="Uno por línea (3 a 6 beneficios)">
@@ -342,7 +342,7 @@ function Field({ label, hint, required, children }) {
       <label className="text-slate-300 text-xs font-medium mb-1.5 flex items-center gap-1.5 block">
         {label}
         {required && <span className="text-violet-glow">*</span>}
-        {hint && <span className="text-slate-600 font-normal">— {hint}</span>}
+        {hint && <span className="text-slate-400 font-normal">— {hint}</span>}
       </label>
       {children}
     </div>

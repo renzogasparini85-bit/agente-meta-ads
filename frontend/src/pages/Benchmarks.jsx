@@ -77,7 +77,7 @@ function MetricCard({ name, data }) {
           style={{ left: `${pct}%`, backgroundColor: t.bar }} />
       </div>
 
-      <div className="flex justify-between text-xs text-slate-600">
+      <div className="flex justify-between text-xs text-slate-400">
         <span>P25: {cfg.unit === '$' ? '$' : ''}{data.p25_sector}</span>
         <span className="text-slate-400">Mediana: {cfg.unit === '$' ? '$' : ''}{data.mediana_sector}</span>
         <span>P75: {cfg.unit === '$' ? '$' : ''}{data.p75_sector}</span>

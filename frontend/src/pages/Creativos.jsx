@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { TrendingUp, Pause, Copy, AlertTriangle, Star, Sparkles, Clock, HelpCircle, X, ArrowUpRight, Wand2, ChevronDown, Check, Zap, ChevronRight } from 'lucide-react'
-import { creativesAPI, campaignsAPI, recommendationsAPI, brandAPI } from '../services/api'
+import { TrendingUp, Pause, Copy, AlertTriangle, Star, Sparkles, Clock, HelpCircle, X, ArrowUpRight, Wand2, ChevronDown, Check, Zap, ChevronRight, ExternalLink, ScanLine } from 'lucide-react'
+import { creativesAPI, campaignsAPI, recommendationsAPI, brandAPI, alertsAPI } from '../services/api'
 import { useFetch } from '../hooks/useFetch'
 import { PageLoading, ErrorState, Spinner } from '../components/LoadingState'
 import DateRangePicker from '../components/DateRangePicker'
@@ -140,7 +140,7 @@ function ModalVariacionPaid({ ad, onClose, nombreCuenta }) {
             </div>
             <p className="text-white font-semibold text-sm">Generar variación</p>
             {step < 3 && (
-              <span className="text-slate-600 text-xs ml-1">
+              <span className="text-slate-400 text-xs ml-1">
                 {step}/2 — {step === 1 ? 'Formato' : 'Ángulo'}
               </span>
             )}
@@ -263,20 +263,27 @@ function ModalVariacionPaid({ ad, onClose, nombreCuenta }) {
 }
 
 // ── Modal de acción: Escalar ──────────────────────────────────────
-function ModalEscalar({ ad, onClose, onDone }) {
+function ModalEscalar({ ad, onClose }) {
   const [pct, setPct] = useState(30)
   const [loading, setLoading] = useState(false)
-  const [done, setDone] = useState(false)
-
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
   const opciones = [20, 30, 50]
+  const isCBO = !ad.adset_id
 
   const handleConfirm = async () => {
+    if (!ad.adset_id) return
     setLoading(true)
-    // No llamamos Meta API para aumentar presupuesto directo (está en adset, no en ad)
-    // Mostramos instrucción clara y registramos la intención
-    await new Promise(r => setTimeout(r, 600))
-    setDone(true)
-    setLoading(false)
+    setError(null)
+    try {
+      const res = await campaignsAPI.scaleAdset(ad.adset_id, pct)
+      setResult(res)
+    } catch (e) {
+      const detail = e?.response?.data?.detail || e?.message || 'Error al escalar'
+      setError(detail)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -292,60 +299,74 @@ function ModalEscalar({ ad, onClose, onDone }) {
           <button onClick={onClose} className="text-slate-500 hover:text-white cursor-pointer"><X size={16} /></button>
         </div>
 
-        {!done ? (
-          <>
-            <p className="text-slate-400 text-xs mb-1 truncate" title={ad.nombre}>{ad.nombre}</p>
-            <p className="text-slate-500 text-xs mb-4">CPA: <span className="text-green-400 font-semibold">${ad.cpa?.toFixed(0)}</span> · CTR: <span className="text-green-400 font-semibold">{ad.ctr}%</span></p>
-
-            <div className="bg-green-400/8 border border-green-400/20 rounded-lg px-3 py-2.5 mb-4">
-              <p className="text-green-400 text-xs leading-relaxed">
-                Este anuncio tiene buen rendimiento. Aumentar el presupuesto del conjunto de anuncios puede multiplicar los resultados sin perder eficiencia.
-              </p>
-            </div>
-
-            <div className="mb-4">
-              <p className="text-slate-400 text-xs font-medium mb-2">¿Cuánto aumentar el presupuesto?</p>
-              <div className="flex gap-2">
-                {opciones.map(o => (
-                  <button
-                    key={o}
-                    onClick={() => setPct(o)}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${pct === o ? 'bg-green-400/20 text-green-400 border-green-400/40' : 'text-slate-400 border-border hover:text-white'}`}
-                  >
-                    +{o}%
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-bg border border-border rounded-lg px-3 py-2.5 mb-4 text-xs text-slate-400 space-y-1.5">
-              <p className="text-white font-medium text-xs mb-1">Cómo hacerlo en Meta Ads Manager:</p>
-              <p>1. Abrí el Ad Set que contiene este anuncio</p>
-              <p>2. Editá el presupuesto diario → aumentá un <span className="text-green-400 font-semibold">+{pct}%</span></p>
-              <p>3. Guardá — Meta empieza a distribuir el nuevo presupuesto en ~15 min</p>
-              <p className="text-slate-600 pt-1">Ad ID: <span className="font-mono">{ad.id}</span></p>
-            </div>
-
-            <button
-              onClick={handleConfirm}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-green-500/20 border border-green-400/40 text-green-400 font-semibold py-2.5 rounded-lg hover:bg-green-500/30 cursor-pointer transition-colors text-sm"
-            >
-              {loading ? <Spinner size={14} /> : <Check size={14} />}
-              {loading ? 'Procesando...' : 'Entendido — voy a hacerlo'}
-            </button>
-          </>
-        ) : (
+        {result ? (
           <div className="text-center py-4 space-y-3">
             <div className="w-12 h-12 rounded-full bg-green-400/15 border border-green-400/30 flex items-center justify-center mx-auto">
-              <TrendingUp size={22} className="text-green-400" />
+              <Check size={22} className="text-green-400" />
             </div>
-            <p className="text-white font-semibold">¡A escalar!</p>
-            <p className="text-slate-400 text-xs">Seguí las instrucciones en Meta Ads Manager para aplicar el +{pct}% de presupuesto.</p>
-            <button onClick={() => { setDone(false); onClose() }} className="w-full border border-border rounded-lg py-2 text-white text-sm cursor-pointer hover:border-violet-DEFAULT/40 transition-colors">
+            <p className="text-white font-semibold">¡Presupuesto escalado!</p>
+            <div className="bg-bg border border-border rounded-lg px-4 py-3 text-xs space-y-1">
+              <p className="text-slate-400">Nuevo presupuesto diario</p>
+              <p className="text-green-400 font-bold text-lg">${result.nuevo_budget_ars?.toLocaleString('es-AR')} ARS/día</p>
+              <p className="text-slate-400">+{pct}% aplicado vía Meta API</p>
+            </div>
+            <p className="text-slate-500 text-xs">El cambio puede tardar ~15 min en verse reflejado en Meta.</p>
+            <button onClick={onClose} className="w-full border border-border rounded-lg py-2 text-white text-sm cursor-pointer hover:border-green-400/30 transition-colors">
               Cerrar
             </button>
           </div>
+        ) : (
+          <>
+            <p className="text-slate-400 text-xs mb-1 truncate" title={ad.nombre}>{ad.nombre}</p>
+            <p className="text-slate-500 text-xs mb-4">
+              CPA: <span className="text-green-400 font-semibold">${ad.cpa?.toFixed(0)}</span>
+              {' '}· CTR: <span className="text-green-400 font-semibold">{ad.ctr}%</span>
+            </p>
+
+            <div className="bg-green-400/8 border border-green-400/20 rounded-lg px-3 py-2.5 mb-4">
+              <p className="text-green-400 text-xs leading-relaxed">
+                Buen rendimiento. Aumentar el presupuesto del conjunto puede multiplicar resultados sin perder eficiencia.
+              </p>
+            </div>
+
+            {isCBO ? (
+              <div className="bg-yellow-400/8 border border-yellow-400/20 rounded-lg px-3 py-2.5 mb-4">
+                <p className="text-yellow-400 text-xs leading-relaxed">
+                  Este conjunto usa <strong>presupuesto de campaña (CBO)</strong>. El presupuesto se gestiona a nivel campaña desde Meta Ads Manager.
+                </p>
+                <a
+                  href="https://adsmanager.facebook.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-2 text-yellow-400 text-xs underline hover:text-yellow-300"
+                >
+                  <ExternalLink size={11} /> Ir a Meta Ads Manager
+                </a>
+              </div>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <p className="text-slate-400 text-xs font-medium mb-2">¿Cuánto aumentar el presupuesto?</p>
+                  <div className="flex gap-2">
+                    {opciones.map(o => (
+                      <button key={o} onClick={() => setPct(o)}
+                        className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${pct === o ? 'bg-green-400/20 text-green-400 border-green-400/40' : 'text-slate-400 border-border hover:text-white'}`}>
+                        +{o}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {error && <p className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2 mb-3">{error}</p>}
+
+                <button onClick={handleConfirm} disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 bg-green-500/20 border border-green-400/40 text-green-400 font-semibold py-2.5 rounded-lg hover:bg-green-500/30 cursor-pointer transition-colors text-sm disabled:opacity-50">
+                  {loading ? <Spinner size={14} /> : <TrendingUp size={14} />}
+                  {loading ? 'Escalando...' : `Escalar +${pct}% vía Meta API`}
+                </button>
+              </>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -353,67 +374,205 @@ function ModalEscalar({ ad, onClose, onDone }) {
 }
 
 // ── Modal de acción: Replicar ─────────────────────────────────────
-function ModalReplicar({ ad, onClose }) {
-  const [angulo, setAngulo] = useState('')
-  const [showCrear, setShowCrear] = useState(false)
+function ModalReplicar({ ad, account, onClose, onDone }) {
+  const [step, setStep] = useState(1) // 1=copy, 2=imagen, 3=confirm, 4=done
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [images, setImages] = useState([])
+  const [loadingImages, setLoadingImages] = useState(false)
 
-  const ANGULOS_REPLICAR = [
-    { v: 'Testimonial de cliente',      desc: 'Mostrar un caso real de alguien que ya lo usó' },
-    { v: 'Problema → solución',         desc: 'Atacar la objeción principal de tu audiencia' },
-    { v: 'Urgencia / stock limitado',   desc: 'Generar presión por tiempo o cupos' },
-    { v: 'Detrás de escena / proceso',  desc: 'Mostrar lo que pasa adentro — genera confianza' },
-    { v: 'Comparación de precio / cuotas', desc: 'Romper la barrera del precio' },
-    { v: 'Propuesta de valor directa',  desc: 'Ir al grano con el diferencial' },
-  ]
+  const [nombre, setNombre]       = useState(`${ad.nombre} — v2`)
+  const [message, setMessage]     = useState('')
+  const [headline, setHeadline]   = useState('')
+  const [imageHash, setImageHash] = useState('')
+  const [result, setResult]       = useState(null)
 
-  if (showCrear) {
-    return <CrearCampana onClose={onClose} onCreated={onClose} anguloInicial={angulo} productoInicial={ad.nombre} />
+  const inputCls = 'w-full bg-bg border border-border rounded-lg px-3 py-2 text-white text-xs placeholder-slate-600 focus:outline-none focus:border-violet-500/50 transition-colors'
+
+  // Cargar imágenes al abrir
+  useState(() => {
+    setLoadingImages(true)
+    campaignsAPI.getAdImages(account?.id)
+      .then(r => setImages(r.data || []))
+      .finally(() => setLoadingImages(false))
+  }, [])
+
+  if (!ad.adset_id) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4" onClick={onClose}>
+        <div className="w-full max-w-sm bg-surface border border-border rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+          <p className="text-yellow-400 text-sm">No se encontró el conjunto de anuncios (adset_id) para este creativo. Actualizá la página e intentá de nuevo.</p>
+          <button onClick={onClose} className="mt-4 w-full border border-border rounded-lg py-2 text-slate-400 text-sm cursor-pointer">Cerrar</button>
+        </div>
+      </div>
+    )
   }
 
+  const handleCrear = async () => {
+    if (!message.trim()) { setError('El texto principal es obligatorio'); return }
+    setLoading(true); setError(null)
+    try {
+      const res = await campaignsAPI.createAd({
+        adset_id:       ad.adset_id,
+        nombre,
+        message,
+        headline,
+        image_hash:     imageHash || null,
+        call_to_action: 'WHATSAPP_MESSAGE',
+        account_id:     account?.id ? String(account.id) : null,
+      })
+      setResult(res)
+      setStep(4)
+      if (onDone) onDone()
+    } catch (e) {
+      const detail = e?.response?.data?.detail
+      setError(typeof detail === 'string' ? detail : e?.message || 'Error al crear el anuncio')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const STEPS = ['Copy', 'Imagen', 'Confirmar']
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4" onClick={onClose}>
-      <div className="w-full max-w-sm bg-surface border border-border rounded-2xl shadow-2xl p-6" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 py-6 overflow-y-auto" onClick={onClose}>
+      <div className="w-full max-w-md bg-surface border border-border rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-blue-400/15 border border-blue-400/30 flex items-center justify-center">
-              <Copy size={14} className="text-blue-400" />
+              <Copy size={13} className="text-blue-400" />
             </div>
-            <p className="text-white font-semibold text-sm">Replicar con nuevo ángulo</p>
+            <div>
+              <p className="text-white font-semibold text-sm">Replicar anuncio</p>
+              {step < 4 && <p className="text-slate-500 text-[10px]">Mismo adset · nuevo creativo · Paso {step}/3</p>}
+            </div>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-white cursor-pointer"><X size={16} /></button>
         </div>
 
-        <p className="text-slate-500 text-xs mb-1 truncate" title={ad.nombre}>{ad.nombre}</p>
-        <p className="text-slate-400 text-xs mb-4">CPA: <span className="text-blue-400 font-semibold">${ad.cpa?.toFixed(0)}</span> · Estrategia: mantener el target, cambiar el creativo</p>
+        {/* Progress */}
+        {step < 4 && (
+          <div className="h-1 bg-border">
+            <div className="h-full bg-blue-400 transition-all duration-500" style={{ width: `${(step / 3) * 100}%` }} />
+          </div>
+        )}
 
-        <div className="bg-blue-400/8 border border-blue-400/20 rounded-lg px-3 py-2.5 mb-4">
-          <p className="text-blue-400 text-xs leading-relaxed">
-            Este anuncio convierte bien. Replicarlo con otro ángulo evita la fatiga de audiencia y puede descubrir un copy que funcione aún mejor.
-          </p>
+        <div className="p-5 space-y-4">
+
+          {/* Contexto del ad original */}
+          {step < 4 && (
+            <div className="bg-bg border border-border rounded-lg px-3 py-2.5 flex items-center gap-3">
+              {ad.thumbnail && <img src={ad.thumbnail} className="w-10 h-10 rounded-lg object-cover shrink-0" alt="" />}
+              <div className="min-w-0">
+                <p className="text-slate-400 text-[10px] font-medium">Original</p>
+                <p className="text-white text-xs truncate font-medium">{ad.nombre}</p>
+                <p className="text-slate-500 text-[10px]">
+                  CPA {ad.cpa ? `$${ad.cpa.toFixed(0)}` : '—'} · CTR {ad.ctr}% · Adset <span className="font-mono">{ad.adset_id}</span>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 1: Copy */}
+          {step === 1 && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-slate-500 text-[10px] uppercase tracking-wide font-medium">Nombre del nuevo anuncio</label>
+                <input value={nombre} onChange={e => setNombre(e.target.value)} className={inputCls} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-slate-500 text-[10px] uppercase tracking-wide font-medium">Texto principal *</label>
+                <textarea rows={4} value={message} onChange={e => setMessage(e.target.value)}
+                  placeholder="Copy del anuncio — usá un ángulo diferente al original..."
+                  className={`${inputCls} resize-none`} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-slate-500 text-[10px] uppercase tracking-wide font-medium">Titular</label>
+                <input value={headline} onChange={e => setHeadline(e.target.value)}
+                  placeholder="Titular corto y directo" className={inputCls} />
+              </div>
+              <button onClick={() => { if (!message.trim()) { setError('El texto principal es obligatorio'); return }; setError(null); setStep(2) }}
+                className="w-full py-2.5 bg-blue-500/20 border border-blue-400/30 text-blue-400 font-semibold rounded-xl hover:bg-blue-500/30 cursor-pointer transition-colors text-sm">
+                Siguiente → Elegir imagen
+              </button>
+            </>
+          )}
+
+          {/* STEP 2: Imagen */}
+          {step === 2 && (
+            <>
+              <p className="text-slate-400 text-xs">Elegí una imagen de la biblioteca (opcional — si no seleccionás, Meta usa la del anuncio original).</p>
+              {loadingImages ? (
+                <p className="text-slate-500 text-xs py-2">Cargando biblioteca…</p>
+              ) : images.length === 0 ? (
+                <p className="text-slate-500 text-xs py-2">Sin imágenes en la biblioteca.</p>
+              ) : (
+                <div className="grid grid-cols-4 gap-2 max-h-52 overflow-y-auto pr-1">
+                  {images.map(img => (
+                    <button key={img.hash} onClick={() => setImageHash(imageHash === img.hash ? '' : img.hash)}
+                      className={`relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${imageHash === img.hash ? 'border-blue-400' : 'border-transparent hover:border-slate-500'}`}>
+                      <img src={img.url_128} alt={img.name} className="w-full h-full object-cover" />
+                      {imageHash === img.hash && (
+                        <div className="absolute inset-0 bg-blue-400/30 flex items-center justify-center">
+                          <Check size={16} className="text-white" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => setStep(1)} className="px-4 py-2.5 border border-border rounded-xl text-slate-400 hover:text-white text-sm cursor-pointer transition-colors">← Atrás</button>
+                <button onClick={() => setStep(3)} className="flex-1 py-2.5 bg-blue-500/20 border border-blue-400/30 text-blue-400 font-semibold rounded-xl hover:bg-blue-500/30 cursor-pointer transition-colors text-sm">
+                  {imageHash ? 'Siguiente → Confirmar' : 'Sin imagen → Confirmar'}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* STEP 3: Confirmar */}
+          {step === 3 && (
+            <>
+              <div className="bg-bg border border-border rounded-xl p-4 space-y-3 text-xs">
+                <div><p className="text-slate-500 mb-0.5">Nombre</p><p className="text-white font-medium">{nombre}</p></div>
+                <div><p className="text-slate-500 mb-0.5">Copy</p><p className="text-slate-300 leading-relaxed whitespace-pre-line">{message}</p></div>
+                {headline && <div><p className="text-slate-500 mb-0.5">Titular</p><p className="text-white">{headline}</p></div>}
+                <div><p className="text-slate-500 mb-0.5">Adset destino</p><p className="text-white font-mono">{ad.adset_id}</p></div>
+                {imageHash && <div><p className="text-slate-500 mb-0.5">Imagen</p><p className="text-white font-mono">{imageHash}</p></div>}
+              </div>
+              {error && <p className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{error}</p>}
+              <div className="flex gap-2">
+                <button onClick={() => setStep(2)} className="px-4 py-2.5 border border-border rounded-xl text-slate-400 hover:text-white text-sm cursor-pointer transition-colors">← Atrás</button>
+                <button onClick={handleCrear} disabled={loading}
+                  className="flex-1 py-2.5 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 disabled:opacity-50 cursor-pointer transition-colors text-sm flex items-center justify-center gap-2">
+                  {loading ? <><Spinner size={14} /> Creando…</> : <><Copy size={14} /> Crear anuncio en Meta</>}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* STEP 4: Listo */}
+          {step === 4 && result && (
+            <div className="text-center py-4 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-blue-400/15 border border-blue-400/30 flex items-center justify-center mx-auto">
+                <Check size={22} className="text-blue-400" />
+              </div>
+              <p className="text-white font-semibold">¡Anuncio replicado!</p>
+              <p className="text-slate-400 text-xs">Creado en el mismo conjunto. Está en estado PAUSED — activalo desde Meta Ads Manager.</p>
+              <div className="bg-bg border border-border rounded-lg px-4 py-3 text-xs text-left space-y-1">
+                <div className="flex justify-between"><span className="text-slate-500">Ad ID</span><span className="text-white font-mono">{result.ad_id}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Adset</span><span className="text-white font-mono">{ad.adset_id}</span></div>
+              </div>
+              <button onClick={onClose} className="w-full border border-border rounded-xl py-2.5 text-white text-sm cursor-pointer hover:border-blue-400/30 transition-colors">
+                Cerrar
+              </button>
+            </div>
+          )}
+
+          {error && step !== 3 && <p className="text-red-400 text-xs">{error}</p>}
         </div>
-
-        <p className="text-slate-400 text-xs font-medium mb-2">Elegí el ángulo para la variante:</p>
-        <div className="space-y-1.5 mb-4">
-          {ANGULOS_REPLICAR.map(a => (
-            <button
-              key={a.v}
-              onClick={() => setAngulo(a.v)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg border text-xs transition-all cursor-pointer ${angulo === a.v ? 'bg-blue-400/15 border-blue-400/30 text-white' : 'border-border text-slate-400 hover:border-slate-500 hover:text-white'}`}
-            >
-              <span className="font-medium block">{a.v}</span>
-              <span className="text-slate-600">{a.desc}</span>
-            </button>
-          ))}
-        </div>
-
-        <button
-          onClick={() => angulo && setShowCrear(true)}
-          disabled={!angulo}
-          className="w-full flex items-center justify-center gap-2 bg-blue-500/20 border border-blue-400/40 text-blue-400 font-semibold py-2.5 rounded-lg hover:bg-blue-500/30 disabled:opacity-40 cursor-pointer transition-colors text-sm"
-        >
-          <Wand2 size={14} />
-          Generar copy para esta variante
-        </button>
       </div>
     </div>
   )
@@ -429,16 +588,31 @@ export default function Creativos() {
     [dateRange, account?.id]
   )
   const { data: treeData } = useFetch(
-    () => campaignsAPI.tree(dateRange.days, account?.id),
+    () => campaignsAPI.tree(dateRange.days ?? 30, account?.id),
     [dateRange.days, account?.id, tab]
   )
-  const [pausing, setPausing] = useState(null)
-  const [msg, setMsg] = useState(null)
+  const [pausing, setPausing]       = useState(null)
+  const [msg, setMsg]               = useState(null)
+  const [scanning, setScanning]     = useState(false)
+  const [scanResult, setScanResult] = useState(null)
   const [modalEscalar, setModalEscalar] = useState(null)
   const [modalReplicar, setModalReplicar] = useState(null)
   const [modalVariacion, setModalVariacion] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
   const [marcaFilter, setMarcaFilter] = useState('Todas')
+
+  const handleScanFatiga = async () => {
+    setScanning(true)
+    setScanResult(null)
+    try {
+      const res = await alertsAPI.scanMe(account?.id)
+      setScanResult(res)
+    } catch (e) {
+      setScanResult({ error: e?.response?.data?.detail || 'Error al escanear' })
+    } finally {
+      setScanning(false)
+    }
+  }
 
   const handlePauseAd = async (ad) => {
     if (!window.confirm(`¿Pausar "${ad.nombre}"?\n\nDetiene el gasto. Reactivable desde Meta Ads Manager.`)) return
@@ -522,6 +696,29 @@ export default function Creativos() {
             </div>
           )}
 
+          {/* Banner fatiga creativa */}
+          <div className="flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3">
+            <AlertTriangle size={15} className="text-yellow-400 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-xs font-semibold">Detección de fatiga creativa</p>
+              <p className="text-slate-500 text-[10px]">Analiza frecuencia, CTR y CPA de los últimos 7 días</p>
+            </div>
+            {scanResult && !scanResult.error && (
+              <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${scanResult.alertas_generadas > 0 ? 'bg-yellow-400/15 border-yellow-400/30 text-yellow-400' : 'bg-green-400/15 border-green-400/30 text-green-400'}`}>
+                {scanResult.alertas_generadas > 0 ? `${scanResult.alertas_generadas} alertas` : '✓ Todo OK'}
+              </span>
+            )}
+            {scanResult?.error && <span className="text-red-400 text-xs">{scanResult.error}</span>}
+            <button
+              onClick={handleScanFatiga}
+              disabled={scanning}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 text-xs font-medium hover:bg-yellow-400/20 cursor-pointer transition-colors disabled:opacity-50 shrink-0"
+            >
+              {scanning ? <Spinner size={12} /> : <ScanLine size={12} />}
+              {scanning ? 'Escaneando…' : 'Escanear'}
+            </button>
+          </div>
+
           {msg && (
             <div className={`px-4 py-3 rounded-lg border text-sm ${msg.type === 'ok' ? 'bg-green-400/10 border-green-400/20 text-green-400' : 'bg-red-400/10 border-red-400/20 text-red-400'}`}>
               {msg.text}
@@ -531,7 +728,7 @@ export default function Creativos() {
           {base?.length === 0 && (
             <div className="text-center py-16 text-slate-500 text-sm space-y-2">
               <p>Sin anuncios con gasto registrado en este período.</p>
-              <p className="text-slate-600 text-xs">Probá ampliar el rango de fechas o verificar que la cuenta tenga anuncios activos.</p>
+              <p className="text-slate-400 text-xs">Probá ampliar el rango de fechas o verificar que la cuenta tenga anuncios activos.</p>
             </div>
           )}
 
@@ -572,7 +769,7 @@ export default function Creativos() {
           )}
 
           {modalEscalar   && <ModalEscalar   ad={modalEscalar}   onClose={() => setModalEscalar(null)} />}
-          {modalReplicar  && <ModalReplicar  ad={modalReplicar}  onClose={() => setModalReplicar(null)} />}
+          {modalReplicar  && <ModalReplicar  ad={modalReplicar} account={account} onClose={() => setModalReplicar(null)} onDone={() => { setModalReplicar(null); refetch() }} />}
           {modalVariacion && <ModalVariacionPaid ad={modalVariacion} onClose={() => setModalVariacion(null)} nombreCuenta={account?.nombre || ''} />}
         </>
       )}
@@ -678,14 +875,14 @@ function CampaignAngulosTable({ campaign }) {
                       {angle}
                     </p>
                     {angle !== adset.adset_name && (
-                      <p className="text-slate-600 text-[10px] truncate max-w-[220px]">{adset.adset_name}</p>
+                      <p className="text-slate-400 text-[10px] truncate max-w-[220px]">{adset.adset_name}</p>
                     )}
                   </td>
                   <td className="px-3 py-3 text-right text-slate-300 font-mono">
                     ${(adset.spend || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
                   </td>
                   <td className="px-3 py-3 text-right text-slate-300 font-mono">{adset.conversiones || 0}</td>
-                  <td className={`px-3 py-3 text-right font-mono font-semibold ${adset.cpa ? (adset.cpa < 500 ? 'text-green-400' : adset.cpa < 900 ? 'text-yellow-400' : 'text-red-400') : 'text-slate-600'}`}>
+                  <td className={`px-3 py-3 text-right font-mono font-semibold ${adset.cpa ? (adset.cpa < 500 ? 'text-green-400' : adset.cpa < 900 ? 'text-yellow-400' : 'text-red-400') : 'text-slate-400'}`}>
                     {adset.cpa ? `$${adset.cpa.toFixed(0)}` : '—'}
                   </td>
                   <td className={`px-3 py-3 text-right font-mono ${adset.ctr >= 2 ? 'text-green-400' : adset.ctr >= 1 ? 'text-yellow-400' : 'text-slate-400'}`}>
@@ -743,7 +940,7 @@ function Section({ title, subtitle, color, children }) {
     <div>
       <div className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-lg border ${colors[color]}`}>
         <p className={`text-xs font-semibold ${colors[color].split(' ')[0]}`}>{title}</p>
-        <span className="text-slate-600 text-xs">—</span>
+        <span className="text-slate-400 text-xs">—</span>
         <p className="text-slate-500 text-xs">{subtitle}</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -756,7 +953,7 @@ function Section({ title, subtitle, color, children }) {
 // ── Tarjeta de creativo ───────────────────────────────────────────
 function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar, onReplicar, onVariacion }) {
   const canEscalar  = c.badge === 'escalar'
-  const canReplicar = ['replicar','retener'].includes(c.badge)
+  const canReplicar = ['replicar','retener','escalar'].includes(c.badge)
   const canOptimizar = c.badge === 'optimizar'
   const canPause    = ['pausar', 'sin_conversiones', 'fatiga'].includes(c.badge)
 
@@ -797,7 +994,7 @@ function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar
         </p>
         <p className="text-slate-500 text-xs">
           ${c.gasto?.toLocaleString('es-AR', { maximumFractionDigits: 0 })} gastados
-          {c.dias_activo != null && <span className="ml-2 text-slate-600">· {c.dias_activo}d</span>}
+          {c.dias_activo != null && <span className="ml-2 text-slate-400">· {c.dias_activo}d</span>}
         </p>
       </div>
 
@@ -809,7 +1006,7 @@ function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar
             <CPABar cpa={c.cpa} />
           </div>
         ) : (
-          <p className="text-slate-600 text-xs mb-3 italic">Sin conversiones registradas</p>
+          <p className="text-slate-400 text-xs mb-3 italic">Sin conversiones registradas</p>
         )}
 
         <div className="grid grid-cols-4 gap-2">
@@ -880,7 +1077,7 @@ function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar
         {canReplicar && (
           <ActionBtn
             label="Replicar" icon={<Copy size={12} />}
-            color="blue" onClick={onVariacion}
+            color="blue" onClick={onReplicar}
           />
         )}
         {(canEscalar || canReplicar) && (

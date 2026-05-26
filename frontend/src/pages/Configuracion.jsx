@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Settings, Save, Check, TrendingUp, MessageCircle } from 'lucide-react'
+import { X, Settings, Save, Check, TrendingUp, MessageCircle, Key, RefreshCw, ExternalLink, BarChart2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 
@@ -25,10 +25,27 @@ export default function Configuracion({ onClose }) {
     ticket_promedio:   client?.ticket_promedio   || '',
     tasa_cierre:       client?.tasa_cierre       || '',
     roas_meta:         client?.roas_meta         || 3,
+    // Umbrales GEM — estándar Ruta Pro 2026
+    cpmr_verde:          client?.cpmr_verde          ?? 20,
+    cpmr_rojo:           client?.cpmr_rojo            ?? 25,
+    hook_verde:          client?.hook_verde           ?? 25,
+    hook_rojo:           client?.hook_rojo            ?? 15,
+    freq_amarillo:       client?.freq_amarillo        ?? 2.5,
+    freq_rojo:           client?.freq_rojo            ?? 3.5,
+    ctr_bueno:           client?.ctr_bueno            || 2,
+    ctr_malo:            client?.ctr_malo             || 0.5,
+    conv_semana_rojo:    client?.conv_semana_rojo     || 50,
+    conv_semana_verde:   client?.conv_semana_verde    || 100,
+    diversidad_amarillo: client?.diversidad_amarillo  || 40,
+    diversidad_rojo:     client?.diversidad_rojo      || 60,
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState(null)
+  const [tokenCorto, setTokenCorto] = useState('')
+  const [savingToken, setSavingToken] = useState(false)
+  const [savedToken, setSavedToken] = useState(null) // { expires_days }
+  const [errorToken, setErrorToken] = useState(null)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -55,19 +72,44 @@ export default function Configuracion({ onClose }) {
         cpa_replicar: Number(form.cpa_replicar),
         cpa_pausar:   Number(form.cpa_pausar),
         roas_meta:    Number(form.roas_meta),
+        // Umbrales GEM
+        cpmr_verde:          Number(form.cpmr_verde),
+        cpmr_rojo:           Number(form.cpmr_rojo),
+        hook_verde:          Number(form.hook_verde),
+        hook_rojo:           Number(form.hook_rojo),
+        freq_amarillo:       Number(form.freq_amarillo),
+        freq_rojo:           Number(form.freq_rojo),
+        ctr_bueno:           Number(form.ctr_bueno),
+        ctr_malo:            Number(form.ctr_malo),
+        conv_semana_rojo:    Number(form.conv_semana_rojo),
+        conv_semana_verde:   Number(form.conv_semana_verde),
+        diversidad_amarillo: Number(form.diversidad_amarillo),
+        diversidad_rojo:     Number(form.diversidad_rojo),
       }
       if (form.ticket_promedio !== '') payload.ticket_promedio = Number(form.ticket_promedio)
       if (form.tasa_cierre !== '')     payload.tasa_cierre     = Number(form.tasa_cierre)
 
       const res = await api.put('/clients/me/settings', payload)
       updateClient({
-        moneda:          res.data.moneda,
-        cpa_escalar:     res.data.cpa_escalar,
-        cpa_replicar:    res.data.cpa_replicar,
-        cpa_pausar:      res.data.cpa_pausar,
-        ticket_promedio: res.data.ticket_promedio,
-        tasa_cierre:     res.data.tasa_cierre,
-        roas_meta:       res.data.roas_meta,
+        moneda:              res.data.moneda,
+        cpa_escalar:         res.data.cpa_escalar,
+        cpa_replicar:        res.data.cpa_replicar,
+        cpa_pausar:          res.data.cpa_pausar,
+        ticket_promedio:     res.data.ticket_promedio,
+        tasa_cierre:         res.data.tasa_cierre,
+        roas_meta:           res.data.roas_meta,
+        cpmr_verde:          res.data.cpmr_verde,
+        cpmr_rojo:           res.data.cpmr_rojo,
+        hook_verde:          res.data.hook_verde,
+        hook_rojo:           res.data.hook_rojo,
+        freq_amarillo:       res.data.freq_amarillo,
+        freq_rojo:           res.data.freq_rojo,
+        ctr_bueno:           res.data.ctr_bueno,
+        ctr_malo:            res.data.ctr_malo,
+        conv_semana_rojo:    res.data.conv_semana_rojo,
+        conv_semana_verde:   res.data.conv_semana_verde,
+        diversidad_amarillo: res.data.diversidad_amarillo,
+        diversidad_rojo:     res.data.diversidad_rojo,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -78,10 +120,26 @@ export default function Configuracion({ onClose }) {
     }
   }
 
+  const handleSaveToken = async () => {
+    if (!tokenCorto.trim()) return
+    setSavingToken(true)
+    setErrorToken(null)
+    setSavedToken(null)
+    try {
+      const res = await api.post(`/auth/meta/exchange-token?short_token=${encodeURIComponent(tokenCorto.trim())}`)
+      setSavedToken(res.data)
+      setTokenCorto('')
+    } catch (e) {
+      setErrorToken(e?.response?.data?.detail || 'Error al procesar el token')
+    } finally {
+      setSavingToken(false)
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6" onClick={onClose}>
       <div
-        className="w-full max-w-sm bg-surface border border-border rounded-2xl shadow-2xl overflow-hidden"
+        className="w-full max-w-sm bg-surface border border-border rounded-2xl shadow-2xl flex flex-col max-h-[90vh]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -98,8 +156,10 @@ export default function Configuracion({ onClose }) {
         {/* Tabs */}
         <div className="flex border-b border-border px-2">
           {[
-            { id: 'cpa',  label: 'CPA & Umbrales', icon: TrendingUp },
-            { id: 'roas', label: 'ROAS Híbrido',   icon: MessageCircle },
+            { id: 'cpa',     label: 'CPA',      icon: TrendingUp },
+            { id: 'metricas',label: 'Métricas', icon: BarChart2 },
+            { id: 'roas',    label: 'ROAS',     icon: MessageCircle },
+            { id: 'token',   label: 'Token',    icon: Key },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -114,7 +174,7 @@ export default function Configuracion({ onClose }) {
           ))}
         </div>
 
-        <div className="px-6 py-5 space-y-5">
+        <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
 
           {tab === 'cpa' && (
             <>
@@ -152,7 +212,7 @@ export default function Configuracion({ onClose }) {
                           className={`w-full bg-bg border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none ${focus} transition-colors`}
                         />
                       </div>
-                      <span className="text-slate-600 text-xs pt-5">{form.moneda}</span>
+                      <span className="text-slate-400 text-xs pt-5">{form.moneda}</span>
                     </div>
                   ))}
                 </div>
@@ -181,7 +241,7 @@ export default function Configuracion({ onClose }) {
                   placeholder="Ej: 85000"
                   className="w-full bg-bg border border-border rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-DEFAULT/60 transition-colors"
                 />
-                <p className="text-slate-600 text-xs mt-1">Valor promedio de lo que paga un cliente cuando cierra.</p>
+                <p className="text-slate-400 text-xs mt-1">Valor promedio de lo que paga un cliente cuando cierra.</p>
               </div>
 
               <div>
@@ -196,7 +256,7 @@ export default function Configuracion({ onClose }) {
                   placeholder="Ej: 20"
                   className="w-full bg-bg border border-border rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-DEFAULT/60 transition-colors"
                 />
-                <p className="text-slate-600 text-xs mt-1">De cada 100 mensajes que recibís, ¿cuántos compran?</p>
+                <p className="text-slate-400 text-xs mt-1">De cada 100 mensajes que recibís, ¿cuántos compran?</p>
               </div>
 
               <div>
@@ -208,7 +268,7 @@ export default function Configuracion({ onClose }) {
                   onChange={e => set('roas_meta', e.target.value)}
                   className="w-full bg-bg border border-border rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-DEFAULT/60 transition-colors"
                 />
-                <p className="text-slate-600 text-xs mt-1">Por debajo de este número un anuncio entra en estado Optimizar.</p>
+                <p className="text-slate-400 text-xs mt-1">Por debajo de este número un anuncio entra en estado Optimizar.</p>
               </div>
 
               {roasPreview && (
@@ -220,28 +280,170 @@ export default function Configuracion({ onClose }) {
             </>
           )}
 
-          {error && <p className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{error}</p>}
+          {tab === 'metricas' && (
+            <>
+              <div className="bg-violet-DEFAULT/5 border border-violet-DEFAULT/15 rounded-xl px-4 py-3">
+                <p className="text-white text-xs font-semibold mb-1">Umbrales GEM — Estándar Ruta Pro 2026</p>
+                <p className="text-slate-400 text-xs leading-relaxed">
+                  Los valores por defecto siguen el estándar profesional 2026. Podés ajustarlos según tu industria y objetivos — los cambios impactan los semáforos en Estrategia, Creativos y el Informe GEM.
+                </p>
+              </div>
 
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full flex items-center justify-center gap-2 bg-violet-DEFAULT text-white font-semibold py-2.5 rounded-lg hover:opacity-90 disabled:opacity-60 cursor-pointer transition-opacity glow-violet text-sm"
-          >
-            {saving ? (
-              <span className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                Guardando...
-              </span>
-            ) : saved ? (
-              <><Check size={16} className="text-green-300" /> Guardado</>
-            ) : (
-              <><Save size={16} /> Guardar cambios</>
-            )}
-          </button>
+              {[
+                {
+                  titulo: 'CPMr — Costo por 1000 alcance único',
+                  nota: 'En la moneda de tu cuenta Meta. Estándar 2026: < $20 verde · > $25 rojo',
+                  campos: [
+                    { key: 'cpmr_verde', label: 'Verde (eficiente) — menor a', color: 'green', hint: form.moneda || 'USD' },
+                    { key: 'cpmr_rojo',  label: 'Rojo (rotar urgente) — mayor a', color: 'red', hint: form.moneda || 'USD' },
+                  ]
+                },
+                {
+                  titulo: 'Hook Rate — % que ve el 25% del video',
+                  nota: 'Estándar 2026: > 25% verde · < 15% rediseñar el hook',
+                  campos: [
+                    { key: 'hook_verde', label: 'Verde (potente) — mayor a', color: 'green', hint: '%' },
+                    { key: 'hook_rojo',  label: 'Rojo (rediseñar) — menor a', color: 'red', hint: '%' },
+                  ]
+                },
+                {
+                  titulo: 'Frecuencia — impactos por persona (7 días, prospecting)',
+                  nota: 'Estándar 2026: > 2.5 preparar variaciones · > 3.5 fatiga severa',
+                  campos: [
+                    { key: 'freq_amarillo', label: 'Amarillo (preparar variaciones) — mayor a', color: 'yellow', hint: 'x' },
+                    { key: 'freq_rojo',     label: 'Rojo (fatiga crítica) — mayor a', color: 'red', hint: 'x' },
+                  ]
+                },
+                {
+                  titulo: 'CTR — tasa de clics',
+                  nota: 'Estándar 2026: > 2% escalar · < 0.5% revisar visual o copy',
+                  campos: [
+                    { key: 'ctr_bueno', label: 'Bueno (escalar) — mayor a', color: 'green', hint: '%' },
+                    { key: 'ctr_malo',  label: 'Malo (revisar) — menor a', color: 'red', hint: '%' },
+                  ]
+                },
+                {
+                  titulo: 'Conversiones por semana — Regla de los 50',
+                  nota: 'Estándar 2026: < 50 = Andromeda pierde liquidez, CPA sube hasta 50%',
+                  campos: [
+                    { key: 'conv_semana_verde', label: 'Verde (escalar) — mayor a', color: 'green', hint: 'conv' },
+                    { key: 'conv_semana_rojo',  label: 'Rojo (consolidar CBO) — menor a', color: 'red', hint: 'conv' },
+                  ]
+                },
+                {
+                  titulo: 'Diversidad de ángulos — Penalización Andromeda',
+                  nota: 'Estándar 2026: > 60% similitud = supresión de entrega por redundancia creativa',
+                  campos: [
+                    { key: 'diversidad_amarillo', label: 'Amarillo — ángulo dominante mayor a', color: 'yellow', hint: '%' },
+                    { key: 'diversidad_rojo',     label: 'Rojo (penalización) — mayor a', color: 'red', hint: '%' },
+                  ]
+                },
+              ].map(grupo => (
+                <div key={grupo.titulo}>
+                  <p className="text-slate-300 text-xs font-semibold mb-1">{grupo.titulo}</p>
+                  {grupo.nota && <p className="text-slate-500 text-[10px] mb-2 leading-relaxed">{grupo.nota}</p>}
+                  <div className="space-y-2">
+                    {grupo.campos.map(({ key, label, color, hint }) => (
+                      <div key={key} className="flex items-center gap-3">
+                        <div className={`w-2.5 h-2.5 rounded-full shrink-0 bg-${color}-400`} />
+                        <div className="flex-1">
+                          <label className="text-slate-400 text-xs block mb-1">{label}</label>
+                          <input
+                            type="number"
+                            step="any"
+                            value={form[key]}
+                            onChange={e => set(key, e.target.value)}
+                            className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-DEFAULT/60 transition-colors"
+                          />
+                        </div>
+                        <span className="text-slate-400 text-xs pt-5 shrink-0">{hint}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+
+          {tab === 'token' && (
+            <>
+              <div className="bg-violet-DEFAULT/5 border border-violet-DEFAULT/15 rounded-xl px-4 py-3">
+                <p className="text-white text-xs font-semibold mb-1">¿Cómo renovar el token?</p>
+                <ol className="text-slate-400 text-xs leading-relaxed space-y-1 list-decimal list-inside">
+                  <li>Abrí el <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noreferrer" className="text-violet-400 hover:underline inline-flex items-center gap-1">Graph API Explorer <ExternalLink size={10} /></a></li>
+                  <li>Seleccioná tu app y hacé clic en <strong className="text-white">Generate Access Token</strong></li>
+                  <li>Copiá el token y pegalo abajo — lo convertimos automáticamente a 60 días</li>
+                </ol>
+              </div>
+
+              <div>
+                <label className="text-slate-400 text-xs font-medium mb-1.5 block">Token de Meta (corto o largo)</label>
+                <textarea
+                  value={tokenCorto}
+                  onChange={e => setTokenCorto(e.target.value)}
+                  placeholder="EAABwzLixnjYBO..."
+                  rows={3}
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-violet-DEFAULT/60 transition-colors resize-none"
+                />
+                <p className="text-slate-400 text-xs mt-1">El token se intercambia automáticamente por uno de 60 días.</p>
+              </div>
+
+              {errorToken && (
+                <p className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{errorToken}</p>
+              )}
+              {savedToken && (
+                <div className="bg-green-400/10 border border-green-400/20 rounded-lg px-3 py-2.5">
+                  <p className="text-green-400 text-xs font-semibold flex items-center gap-1.5">
+                    <Check size={13} /> Token actualizado correctamente
+                  </p>
+                  <p className="text-slate-400 text-xs mt-0.5">
+                    {savedToken.expires_days > 0
+                      ? `Expira en ${savedToken.expires_days} días`
+                      : 'Token de sistema — no expira'}
+                  </p>
+                </div>
+              )}
+
+              <button
+                onClick={handleSaveToken}
+                disabled={savingToken || !tokenCorto.trim()}
+                className="w-full flex items-center justify-center gap-2 bg-violet-DEFAULT text-white font-semibold py-2.5 rounded-lg hover:opacity-90 disabled:opacity-40 cursor-pointer transition-opacity glow-violet text-sm"
+              >
+                {savingToken
+                  ? <><RefreshCw size={15} className="animate-spin" /> Procesando...</>
+                  : <><Key size={15} /> Guardar token</>
+                }
+              </button>
+            </>
+          )}
+
         </div>
+
+        {/* Footer fijo — Guardar */}
+        {tab !== 'token' && (
+          <div className="px-6 py-4 border-t border-border shrink-0">
+            {error && <p className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2 mb-3">{error}</p>}
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full flex items-center justify-center gap-2 bg-violet-DEFAULT text-white font-semibold py-2.5 rounded-lg hover:opacity-90 disabled:opacity-60 cursor-pointer transition-opacity glow-violet text-sm"
+            >
+              {saving ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Guardando...
+                </span>
+              ) : saved ? (
+                <><Check size={16} className="text-green-300" /> Guardado</>
+              ) : (
+                <><Save size={16} /> Guardar cambios</>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

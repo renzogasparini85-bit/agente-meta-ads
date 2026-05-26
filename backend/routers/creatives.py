@@ -168,6 +168,15 @@ async def ranking(
         impressions = float(a.get("impressions", 0) or 0)
         reach       = float(a.get("reach", 0) or 0)
         ftir        = compute_ftir(reach, impressions)
+
+        # CPMr = costo por 1000 personas únicas alcanzadas
+        cpmr = round((spend / reach * 1000), 2) if reach > 0 else None
+
+        # Hook Rate = % que vio al menos el 25% del video (proxy de retención del hook)
+        video_views_25 = 0
+        for v in (a.get("video_p25_watched_actions") or []):
+            video_views_25 += float(v.get("value", 0) or 0)
+        hook_rate = round((video_views_25 / impressions * 100), 1) if impressions > 0 and video_views_25 > 0 else None
         segmento    = ftir_segmento(ftir)
         roas        = compute_roas_hibrido(
             spend, conv,
@@ -189,6 +198,8 @@ async def ranking(
         nombre_ad = a.get("ad_name") or ""
         result.append({
             "id":             ad_id,
+            "adset_id":       a.get("adset_id"),
+            "campaign_id":    a.get("campaign_id"),
             "nombre":         nombre_ad,
             "marca":          extract_marca(nombre_ad),
             "thumbnail":      thumbnails.get(ad_id),
@@ -201,7 +212,9 @@ async def ranking(
             "impresiones":    int(impressions),
             "alcance":        int(reach),
             "ftir":           ftir,
-            "segmento":       segmento,   # prospeccion | retargeting | mixto | sin_datos
+            "cpmr":           cpmr,
+            "hook_rate":      hook_rate,
+            "segmento":       segmento,
             "dias_activo":    dias,
             "badge":          badge,
         })

@@ -110,7 +110,7 @@ function OrganicCard({ post, onGenerate }) {
           <img src={post.thumbnail} className="w-14 h-14 rounded-lg object-cover shrink-0 bg-bg" alt="" />
         ) : (
           <div className="w-14 h-14 rounded-lg bg-bg border border-border shrink-0 flex items-center justify-center">
-            <BarChart2 size={18} className="text-slate-600" />
+            <BarChart2 size={18} className="text-slate-400" />
           </div>
         )}
         <div className="flex-1 min-w-0">
@@ -231,7 +231,7 @@ export default function Analytics() {
                   <p className={`font-bold text-sm ${isTop ? 'text-violet-glow' : 'text-white'}`}>
                     {d.conv_prom.toFixed(1)}
                   </p>
-                  <p className="text-xs text-slate-600">conv</p>
+                  <p className="text-xs text-slate-400">conv</p>
                   {d.cpa && <p className="text-xs text-slate-500 mt-1">${Math.round(d.cpa)}</p>}
                 </div>
               )

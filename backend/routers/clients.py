@@ -38,6 +38,19 @@ class UpdateSettingsRequest(BaseModel):
     ticket_promedio: float = None
     tasa_cierre: float = None
     roas_meta: float = None
+    # Umbrales GEM
+    cpmr_verde: float = None
+    cpmr_rojo: float = None
+    hook_verde: float = None
+    hook_rojo: float = None
+    freq_amarillo: float = None
+    freq_rojo: float = None
+    ctr_bueno: float = None
+    ctr_malo: float = None
+    conv_semana_rojo: float = None
+    conv_semana_verde: float = None
+    diversidad_amarillo: float = None
+    diversidad_rojo: float = None
 
 
 class UpdateBrandRequest(BaseModel):
@@ -122,22 +135,17 @@ def update_my_settings(
     client: Client = Depends(get_current_client),
     db: Session = Depends(get_db),
 ):
-    if body.moneda is not None:
-        client.moneda = body.moneda
-    if body.cpa_escalar is not None:
-        client.cpa_escalar = body.cpa_escalar
-    if body.cpa_replicar is not None:
-        client.cpa_replicar = body.cpa_replicar
-    if body.cpa_pausar is not None:
-        client.cpa_pausar = body.cpa_pausar
-    if body.gasto_minimo_juzgar is not None:
-        client.gasto_minimo_juzgar = body.gasto_minimo_juzgar
-    if body.ticket_promedio is not None:
-        client.ticket_promedio = body.ticket_promedio
-    if body.tasa_cierre is not None:
-        client.tasa_cierre = body.tasa_cierre
-    if body.roas_meta is not None:
-        client.roas_meta = body.roas_meta
+    fields = [
+        'moneda','cpa_escalar','cpa_replicar','cpa_pausar','gasto_minimo_juzgar',
+        'ticket_promedio','tasa_cierre','roas_meta',
+        'cpmr_verde','cpmr_rojo','hook_verde','hook_rojo',
+        'freq_amarillo','freq_rojo','ctr_bueno','ctr_malo',
+        'conv_semana_rojo','conv_semana_verde','diversidad_amarillo','diversidad_rojo',
+    ]
+    for f in fields:
+        val = getattr(body, f, None)
+        if val is not None:
+            setattr(client, f, val)
     db.commit()
     return {
         "ok": True,
@@ -149,6 +157,18 @@ def update_my_settings(
         "ticket_promedio": client.ticket_promedio,
         "tasa_cierre": client.tasa_cierre,
         "roas_meta": client.roas_meta,
+        "cpmr_verde": client.cpmr_verde,
+        "cpmr_rojo": client.cpmr_rojo,
+        "hook_verde": client.hook_verde,
+        "hook_rojo": client.hook_rojo,
+        "freq_amarillo": client.freq_amarillo,
+        "freq_rojo": client.freq_rojo,
+        "ctr_bueno": client.ctr_bueno,
+        "ctr_malo": client.ctr_malo,
+        "conv_semana_rojo": client.conv_semana_rojo,
+        "conv_semana_verde": client.conv_semana_verde,
+        "diversidad_amarillo": client.diversidad_amarillo,
+        "diversidad_rojo": client.diversidad_rojo,
     }
 
 

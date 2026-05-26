@@ -38,7 +38,7 @@ export default function BudgetSimulator({ kpis, moneda = 'ARS' }) {
           onChange={e => setMeta(Number(e.target.value))}
           className="w-full accent-violet-DEFAULT cursor-pointer"
         />
-        <div className="flex justify-between text-xs text-slate-600 mt-1">
+        <div className="flex justify-between text-xs text-slate-400 mt-1">
           <span>1</span>
           <span>{Math.max(convActuales * 5, 100)}</span>
         </div>

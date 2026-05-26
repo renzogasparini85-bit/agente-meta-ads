@@ -156,7 +156,7 @@ function SnippetViewer({ pixelId, onClose }) {
                 <li>3. Pegá el snippet justo antes de esa etiqueta</li>
               </ol>
               <div className="flex items-center justify-between mt-2">
-                <p className="text-slate-600 text-xs">Ver snippet completo en la tab "HTML manual"</p>
+                <p className="text-slate-400 text-xs">Ver snippet completo en la tab "HTML manual"</p>
               </div>
             </div>
           </div>
@@ -326,7 +326,7 @@ export default function PixelMeta({ onClose }) {
                   onChange={e => setUrl(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleScan()}
                   placeholder="https://tusitio.com"
-                  className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50"
+                  className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-400 focus:outline-none focus:border-blue-500/50"
                 />
                 <button
                   onClick={handleScan}
@@ -374,7 +374,7 @@ export default function PixelMeta({ onClose }) {
                   onChange={e => setNewPixelName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleCreate()}
                   placeholder="Nombre del pixel (ej: Sitio Principal)"
-                  className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-600 focus:outline-none focus:border-green-500/50"
+                  className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-white text-sm placeholder:text-slate-400 focus:outline-none focus:border-green-500/50"
                 />
                 <button
                   onClick={handleCreate}
@@ -424,7 +424,7 @@ export default function PixelMeta({ onClose }) {
               <ExternalLink size={12} /> Events Manager
             </a>
             <a href="https://developers.facebook.com/docs/meta-pixel/get-started" target="_blank" rel="noreferrer"
-              className="text-slate-600 hover:text-slate-400 text-xs transition-colors">
+              className="text-slate-400 hover:text-slate-400 text-xs transition-colors">
               Documentación oficial
             </a>
           </div>

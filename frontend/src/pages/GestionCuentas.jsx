@@ -13,7 +13,7 @@ const COLORES = [
 
 const MONEDAS = ['ARS', 'USD', 'MXN', 'COP', 'BRL', 'CLP', 'PEN', 'EUR']
 
-const inputCls = "w-full bg-bg border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-DEFAULT/60 transition-colors placeholder:text-slate-600"
+const inputCls = "w-full bg-bg border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-DEFAULT/60 transition-colors placeholder:text-slate-400"
 const labelCls = "text-slate-400 text-xs mb-1 block"
 
 // ─── Formulario nueva cuenta ──────────────────────────────────────────────────
@@ -94,7 +94,7 @@ function NuevaCuentaForm({ onSaved, onCancel }) {
           <div>
             <label className={labelCls}>
               Filtro de cliente
-              <span className="text-slate-600 ml-1 font-normal">— opcional</span>
+              <span className="text-slate-400 ml-1 font-normal">— opcional</span>
             </label>
             <input value={form.campaign_filter} onChange={e => set('campaign_filter', e.target.value)}
               placeholder="Ej: climaset — solo muestra campañas con ese nombre"
@@ -208,13 +208,13 @@ function EditPanel({ acc, onSaved, onCancel }) {
             <label className={labelCls}>Meta Ad Account ID</label>
             <input value={acc.meta_ad_account_id} readOnly
               className={`${inputCls} opacity-50 cursor-not-allowed`} />
-            <p className="text-slate-600 text-[10px] mt-1">El Account ID no se puede modificar una vez creado</p>
+            <p className="text-slate-400 text-[10px] mt-1">El Account ID no se puede modificar una vez creado</p>
           </div>
 
           <div>
             <label className={labelCls}>
               Filtro de cliente
-              <span className="text-slate-600 ml-1 font-normal">— opcional, para separar clientes dentro del mismo ad account</span>
+              <span className="text-slate-400 ml-1 font-normal">— opcional, para separar clientes dentro del mismo ad account</span>
             </label>
             <input
               value={form.campaign_filter}
@@ -222,7 +222,7 @@ function EditPanel({ acc, onSaved, onCancel }) {
               placeholder="Ej: climaset, WT, David Neumaticos..."
               className={inputCls}
             />
-            <p className="text-slate-600 text-[10px] mt-1">
+            <p className="text-slate-400 text-[10px] mt-1">
               Solo muestra campañas cuyo nombre contiene este texto. Dejalo vacío para ver todas.
             </p>
           </div>
@@ -258,7 +258,7 @@ function EditPanel({ acc, onSaved, onCancel }) {
           <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
           Contenido Orgánico
         </p>
-        <p className="text-slate-600 text-[10px] mb-3">
+        <p className="text-slate-400 text-[10px] mb-3">
           Necesario para ver métricas de posts, reels e historias en la sección Orgánico.
         </p>
         <div className="space-y-3">
@@ -279,12 +279,12 @@ function EditPanel({ acc, onSaved, onCancel }) {
                   className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-surface cursor-pointer transition-colors border-b border-border last:border-0 text-left">
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-xs font-medium truncate">{p.nombre}</p>
-                    <p className="text-slate-600 text-[10px] font-mono mt-0.5">ID: {p.page_id}</p>
+                    <p className="text-slate-400 text-[10px] font-mono mt-0.5">ID: {p.page_id}</p>
                   </div>
                   {p.ig_id ? (
                     <span className="text-[10px] text-pink-400 bg-pink-400/10 border border-pink-400/20 rounded px-1.5 py-0.5 shrink-0">+ IG</span>
                   ) : (
-                    <span className="text-[10px] text-slate-600 shrink-0">solo FB</span>
+                    <span className="text-[10px] text-slate-400 shrink-0">solo FB</span>
                   )}
                 </button>
               ))}
@@ -294,7 +294,7 @@ function EditPanel({ acc, onSaved, onCancel }) {
           <div>
             <label className={labelCls}>
               ID de Página de Facebook
-              <span className="text-slate-600 ml-1 font-normal">— métricas orgánicas FB</span>
+              <span className="text-slate-400 ml-1 font-normal">— métricas orgánicas FB</span>
             </label>
             <input
               value={form.meta_page_id}
@@ -307,7 +307,7 @@ function EditPanel({ acc, onSaved, onCancel }) {
           <div>
             <label className={labelCls}>
               ID de cuenta de Instagram Business
-              <span className="text-slate-600 ml-1 font-normal">— métricas orgánicas IG</span>
+              <span className="text-slate-400 ml-1 font-normal">— métricas orgánicas IG</span>
             </label>
             <input
               value={form.meta_ig_account_id}
@@ -387,7 +387,7 @@ function ImportarDesdeMeta({ onImported }) {
         <div key={c.account_id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border bg-surface">
           <div className="flex-1 min-w-0">
             <p className="text-white text-xs font-medium truncate">{c.nombre}</p>
-            <p className="text-slate-600 text-[10px] font-mono mt-0.5">{c.account_id} · {c.moneda}</p>
+            <p className="text-slate-400 text-[10px] font-mono mt-0.5">{c.account_id} · {c.moneda}</p>
           </div>
           {c.status !== 'activa' && (
             <span className="text-[10px] text-slate-500 bg-slate-800 border border-border rounded px-1.5 py-0.5">{c.status}</span>
@@ -526,7 +526,7 @@ export default function GestionCuentas({ onClose }) {
 
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-xs font-medium truncate">{acc.nombre}</p>
-                  <p className="text-slate-600 text-xs font-mono mt-0.5">{acc.meta_ad_account_id} · {acc.moneda}</p>
+                  <p className="text-slate-400 text-xs font-mono mt-0.5">{acc.meta_ad_account_id} · {acc.moneda}</p>
                   {(acc.meta_page_id || acc.meta_ig_account_id) && (
                     <div className="flex gap-2 mt-1">
                       {acc.meta_page_id && (

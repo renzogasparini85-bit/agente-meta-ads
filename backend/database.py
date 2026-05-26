@@ -29,6 +29,20 @@ class Client(Base):
     cpa_pausar = Column(Float, default=900.0)
     gasto_minimo_juzgar = Column(Float, default=3000.0)
 
+    # Umbrales de métricas GEM — estándar Ruta Pro 2026 (en moneda de la cuenta)
+    cpmr_verde  = Column(Float, default=20.0)     # CPMr < este valor = eficiente (USD) / ajustar según moneda
+    cpmr_rojo   = Column(Float, default=25.0)     # CPMr > este valor = rotar urgente
+    hook_verde  = Column(Float, default=25.0)     # Hook Rate > este valor = potente
+    hook_rojo   = Column(Float, default=15.0)     # Hook Rate < este valor = rediseñar
+    freq_amarillo = Column(Float, default=2.5)    # Frecuencia > este = preparar variaciones
+    freq_rojo   = Column(Float, default=3.5)      # Frecuencia > este = fatiga crítica
+    ctr_bueno   = Column(Float, default=2.0)      # CTR > este = escalar
+    ctr_malo    = Column(Float, default=0.5)      # CTR < este + gasto = revisar
+    conv_semana_rojo    = Column(Float, default=50.0)   # Conv/sem < este = consolidar CBO
+    conv_semana_verde   = Column(Float, default=100.0)  # Conv/sem > este = escalar
+    diversidad_amarillo = Column(Float, default=40.0)   # % ángulo dominante > este = atención
+    diversidad_rojo     = Column(Float, default=60.0)   # % ángulo dominante > este = penalización
+
     # ROAS Híbrido — para clientes WhatsApp sin e-commerce
     ticket_promedio = Column(Float, nullable=True)   # $ promedio por venta cerrada
     tasa_cierre = Column(Float, nullable=True)        # % de mensajes que terminan en venta (0-100)

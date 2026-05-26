@@ -4,9 +4,10 @@ POST /alerts/scan  → analiza todos los clientes activos y genera alertas nueva
 Se puede llamar desde GitHub Actions diariamente.
 Tiene una API key propia para no requerir JWT de usuario.
 """
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
-from database import SessionLocal, Client, AdAccount, Alert
+from database import SessionLocal, Client, AdAccount, Alert, get_db
+from auth import get_current_client
 from services.meta_api import get_ad_insights, extract_conversions, compute_cpa
 from datetime import datetime
 import asyncio, os
@@ -156,14 +157,14 @@ async def _scan_client(client: Client, db: Session) -> int:
 
             alertas_ad = []
 
-            # Frecuencia crítica
-            if freq >= 3.0:
+            # Frecuencia crítica — usa umbrales configurables del cliente
+            if freq >= client.freq_rojo:
                 alertas_ad.append({
                     "tipo": "frecuencia",
                     "severidad": "alta",
                     "mensaje": f"⚠️ Frecuencia crítica ({freq:.1f}) en '{ad_name}'. Renovar creativo urgente.",
                 })
-            elif freq >= 2.5:
+            elif freq >= client.freq_amarillo:
                 alertas_ad.append({
                     "tipo": "frecuencia",
                     "severidad": "media",
@@ -219,25 +220,72 @@ async def _scan_client(client: Client, db: Session) -> int:
     return new_alerts
 
 
-@router.post("/scan/me")
-async def scan_my_account(
-    account_id: str = Query(None),
-    x_api_key: str = Header(None),
-):
-    """
-    Escaneo manual desde el panel — usa JWT + puede llamarse desde UI.
-    """
-    from auth import get_current_client
-    from fastapi import Depends
-    # Este endpoint se llama desde el frontend con JWT, no con API key
-    # Lo manejamos diferente: ver abajo
-    raise HTTPException(status_code=501, detail="Usá POST /alerts/scan-me con JWT")
-
-
 @router.post("/scan-me")
-async def scan_my_account_jwt(
+async def scan_me(
     account_id: str = Query(None),
-    # Usamos auth manual para no depender de Depends en función async
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
 ):
-    """Placeholder — el scan manual real está en alerts_router via JWT."""
-    raise HTTPException(status_code=501, detail="Ver /alerts/scan con JWT en alerts_router")
+    """Escaneo manual desde el panel — usa JWT. Detecta fatiga, CTR bajo, CPA alto."""
+    from routers.account_resolver import resolve_account
+    ad_account_id, token, _, campaign_filter, _ = resolve_account(client, account_id, db)
+    if token == "DEMO":
+        return {"ok": True, "alertas_generadas": 0, "demo": True}
+
+    try:
+        ads = await get_ad_insights(ad_account_id, token, days=7)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Error Meta API: {str(e)}")
+
+    new_alerts = 0
+    for ad in ads:
+        if campaign_filter:
+            if campaign_filter.lower() not in (ad.get("campaign_name") or "").lower():
+                continue
+
+        ad_id   = ad.get("ad_id") or ""
+        ad_name = ad.get("ad_name") or ad_id
+        spend   = float(ad.get("spend", 0) or 0)
+        freq    = float(ad.get("frequency", 0) or 0)
+        ctr     = float(ad.get("ctr", 0) or 0)
+        conv    = extract_conversions(ad.get("actions", []))
+        cpa     = compute_cpa(spend, conv)
+
+        candidatas = []
+
+        if freq >= client.freq_rojo:
+            candidatas.append(("frecuencia", "alta",
+                f"⚠️ Frecuencia crítica ({freq:.1f}) en '{ad_name}'. Renovar creativo urgente."))
+        elif freq >= client.freq_amarillo:
+            candidatas.append(("frecuencia", "media",
+                f"Frecuencia elevada ({freq:.1f}) en '{ad_name}'. Preparate para rotar el creativo."))
+
+        if cpa and cpa >= client.cpa_pausar:
+            candidatas.append(("cpa_alto", "alta",
+                f"🔴 CPA ${cpa:.0f} en '{ad_name}' supera el umbral de pausa (${client.cpa_pausar:.0f})."))
+
+        if spend >= client.gasto_minimo_juzgar and conv == 0:
+            candidatas.append(("sin_conversion", "alta",
+                f"⛔ '{ad_name}' gastó ${spend:.0f} en 7 días sin conversiones."))
+
+        if ctr < 0.5 and spend >= 1000:
+            candidatas.append(("ctr_caida", "media",
+                f"CTR muy bajo ({ctr:.2f}%) en '{ad_name}'. Revisá el visual o el copy."))
+
+        for tipo, severidad, mensaje in candidatas:
+            existe = db.query(Alert).filter(
+                Alert.client_id == client.id,
+                Alert.ad_id == ad_id,
+                Alert.tipo == tipo,
+                Alert.estado == "activa",
+            ).first()
+            if not existe:
+                db.add(Alert(
+                    client_id=client.id,
+                    tipo=tipo, severidad=severidad,
+                    mensaje=mensaje, ad_id=ad_id, estado="activa",
+                ))
+                new_alerts += 1
+
+    db.commit()
+    return {"ok": True, "alertas_generadas": new_alerts, "ads_analizados": len(ads)}

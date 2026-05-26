@@ -1,6 +1,7 @@
 import { useState, useEffect, Component } from 'react'
-import { X, CheckCircle } from 'lucide-react'
+import { X, CheckCircle, Sparkles, Loader2 } from 'lucide-react'
 import { campaignsAPI } from '../services/api'
+import api from '../services/api'
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -111,7 +112,7 @@ function WhatsappNumberSelector({ accountId, value, onChange }) {
           onChange={e => onChange(e.target.value.replace(/\D/g, ''))}
           placeholder="5491112345678"
           className={inputCls} />
-        <p className="text-slate-600 text-xs mt-1">
+        <p className="text-slate-400 text-xs mt-1">
           {hint || 'No se encontró un número de WhatsApp vinculado a esta página. Ingresá manualmente: 549 + código de área + número (sin +, espacios ni guiones).'}
         </p>
       </Field>
@@ -183,14 +184,40 @@ function ManualAudienceFields({ form, setForm }) {
   )
 }
 
-function ImageSelector({ accountId, value, onChange }) {
+function ImageSelector({ accountId, value, onChange, onAnalysis, objetivo }) {
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(true)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analyzed, setAnalyzed] = useState(null)
+
   useEffect(() => {
     campaignsAPI.getAdImages(accountId)
       .then(r => setImages(r.data || []))
       .finally(() => setLoading(false))
   }, [accountId])
+
+  const handleSelect = async (img) => {
+    const newHash = value === img.hash ? '' : img.hash
+    onChange(newHash)
+    setAnalyzed(null)
+    if (!newHash || !img.url) return
+
+    setAnalyzing(true)
+    try {
+      const res = await api.post('/creative/analyze-url', {
+        image_url: img.url,
+        objetivo: objetivo || 'OUTCOME_LEADS',
+        tono: 'cercano y directo',
+      })
+      setAnalyzed(res.data)
+      if (onAnalysis) onAnalysis(res.data)
+    } catch {
+      // silencioso — el usuario puede completar el copy manual
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
   return (
     <Field label="Imagen del anuncio (opcional)">
       {loading ? (
@@ -200,7 +227,7 @@ function ImageSelector({ accountId, value, onChange }) {
       ) : (
         <div className="grid grid-cols-4 gap-2 max-h-44 overflow-y-auto pr-1">
           {images.map(img => (
-            <button key={img.hash} onClick={() => onChange(value === img.hash ? '' : img.hash)}
+            <button key={img.hash} onClick={() => handleSelect(img)}
               className={`relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${value === img.hash ? 'border-violet-500' : 'border-transparent hover:border-slate-500'}`}>
               <img src={img.url_128} alt={img.name} className="w-full h-full object-cover" />
               {value === img.hash && (
@@ -210,6 +237,33 @@ function ImageSelector({ accountId, value, onChange }) {
               )}
             </button>
           ))}
+        </div>
+      )}
+
+      {analyzing && (
+        <div className="flex items-center gap-2 text-violet-400 text-xs mt-2">
+          <Loader2 size={13} className="animate-spin" />
+          Analizando imagen con IA…
+        </div>
+      )}
+
+      {analyzed && !analyzing && (
+        <div className="mt-2 bg-violet-500/10 border border-violet-500/20 rounded-lg px-3 py-2 space-y-1">
+          <div className="flex items-center gap-1.5">
+            <Sparkles size={12} className="text-violet-400" />
+            <span className="text-violet-300 text-[10px] font-semibold uppercase tracking-wide">
+              IA detectó: {analyzed.angulo_detectado}
+            </span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ml-auto ${
+              analyzed.confianza === 'alta' ? 'bg-green-500/20 text-green-400' :
+              analyzed.confianza === 'media' ? 'bg-yellow-500/20 text-yellow-400' :
+              'bg-slate-500/20 text-slate-400'
+            }`}>{analyzed.confianza}</span>
+          </div>
+          {analyzed.observaciones_creativo && (
+            <p className="text-slate-400 text-[10px] leading-relaxed">{analyzed.observaciones_creativo}</p>
+          )}
+          <p className="text-slate-400 text-[10px]">✓ Copy pre-completado con el análisis</p>
         </div>
       )}
     </Field>
@@ -386,7 +440,7 @@ export default function CrearCampana({ onClose, onCreated, account }) {
               <input type="number" value={form.presupuesto}
                 onChange={e => setForm(f => ({ ...f, presupuesto: e.target.value }))}
                 placeholder="5000" min="5000" className={inputCls} />
-              <p className="text-slate-600 text-xs mt-1">Mínimo recomendado: $5.000 ARS / día</p>
+              <p className="text-slate-400 text-xs mt-1">Mínimo recomendado: $5.000 ARS / día</p>
             </Field>
 
             {error && <p className="text-red-400 text-xs">{error}</p>}
@@ -416,7 +470,7 @@ export default function CrearCampana({ onClose, onCreated, account }) {
                   <button key={v} onClick={() => setForm(f => ({ ...f, audience_type: v }))}
                     className={`px-3 py-3 rounded-xl border text-xs font-medium cursor-pointer transition-all text-left ${form.audience_type === v ? 'bg-violet-500/20 border-violet-500/40 text-white' : 'border-border text-slate-400 hover:border-slate-500'}`}>
                     <p>{l}</p>
-                    <p className="text-slate-600 mt-0.5 font-normal">{d}</p>
+                    <p className="text-slate-400 mt-0.5 font-normal">{d}</p>
                   </button>
                 ))}
               </div>
@@ -473,7 +527,17 @@ export default function CrearCampana({ onClose, onCreated, account }) {
             <ImageSelector
               accountId={account?.id}
               value={form.image_hash}
+              objetivo={form.objetivo}
               onChange={hash => setForm(f => ({ ...f, image_hash: hash }))}
+              onAnalysis={analysis => {
+                const copy = analysis?.copy || {}
+                setForm(f => ({
+                  ...f,
+                  message:     copy.primary_text || f.message,
+                  headline:    copy.headline     || f.headline,
+                  description: copy.description  || f.description,
+                }))
+              }}
             />
 
             <Field label="Texto principal">

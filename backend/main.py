@@ -26,6 +26,8 @@ from routers.smart_alerts import router as smart_alerts_router
 from routers.client_view import router as client_view_router
 from routers.creative_analyze import router as creative_analyze_router
 from routers.pixel import router as pixel_router
+from routers.brief import router as brief_router
+from routers.strategy import router as strategy_router
 
 app = FastAPI(title="Meta Ads AI — Backend", version="1.0.0")
 
@@ -56,6 +58,8 @@ app.include_router(smart_alerts_router)
 app.include_router(client_view_router)
 app.include_router(creative_analyze_router)
 app.include_router(pixel_router)
+app.include_router(brief_router)
+app.include_router(strategy_router)
 
 
 @app.on_event("startup")

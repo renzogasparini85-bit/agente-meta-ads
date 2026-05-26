@@ -162,7 +162,7 @@ export default function Recomendaciones() {
                   <p className={`text-xs font-medium ${t.accent}`}>{r.accion}</p>
                 </div>
                 {r.generado_en && (
-                  <p className="text-slate-600 text-xs mt-2">
+                  <p className="text-slate-400 text-xs mt-2">
                     Generado {new Date(r.generado_en).toLocaleDateString('es-AR')}
                   </p>
                 )}

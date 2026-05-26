@@ -58,7 +58,7 @@ function KPICard({ config, data }) {
       <p className="text-white text-2xl font-bold">
         {fmt(data.value, config.prefix || '', config.suffix || '')}
       </p>
-      <p className="text-slate-600 text-xs mt-1">vs período anterior</p>
+      <p className="text-slate-400 text-xs mt-1">vs período anterior</p>
     </div>
   )
 }
@@ -198,7 +198,7 @@ export default function Overview() {
                   <span className="text-white text-sm flex-1 truncate">{c.nombre}</span>
                   <div className="text-right shrink-0">
                     <span className={`text-xs font-medium ${s.color}`}>{s.label}</span>
-                    {c.cpa && <p className="text-slate-600 text-xs">CPA ${c.cpa.toFixed(0)}</p>}
+                    {c.cpa && <p className="text-slate-400 text-xs">CPA ${c.cpa.toFixed(0)}</p>}
                   </div>
                 </div>
               )

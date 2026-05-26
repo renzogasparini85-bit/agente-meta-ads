@@ -65,7 +65,7 @@ export default function DateRangePicker({ days, since, until, onChange, extraBut
           onChange={e => { setDesde(e.target.value); setCustom(false) }}
           className={inputCls}
         />
-        <span className="text-slate-600 text-xs">→</span>
+        <span className="text-slate-400 text-xs">→</span>
         <input
           type="date"
           value={hasta}

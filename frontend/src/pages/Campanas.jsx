@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, XCircle, Plus } from 'lucide-react'
+import { ChevronRight, ChevronDown, CheckCircle, AlertTriangle, XCircle, Plus, Sparkles, Pause, Play, Loader2 } from 'lucide-react'
 import { campaignsAPI } from '../services/api'
 import { useFetch } from '../hooks/useFetch'
 import { PageLoading, ErrorState } from '../components/LoadingState'
 import { useAccount } from '../context/AccountContext'
 import AdSetRow from '../components/AdSetRow'
 import CrearCampana from './CrearCampana'
+import BriefGenerador from './BriefGenerador'
 
 const PERIODS = [
   { label: 'Hoy', days: 1 },
@@ -23,11 +24,31 @@ const fmt = (n) => n != null ? Number(n).toLocaleString('es-AR', { maximumFracti
 
 function CampaignRow({ campaign }) {
   const [open, setOpen] = useState(false)
+  const [status, setStatus] = useState(campaign.status || 'ACTIVE')
+  const [loadingStatus, setLoadingStatus] = useState(false)
   const s = semaforo[campaign.estado] || semaforo.amarillo
   const Chevron = open ? ChevronDown : ChevronRight
 
+  const toggleStatus = async (e) => {
+    e.stopPropagation()
+    setLoadingStatus(true)
+    try {
+      if (status === 'ACTIVE') {
+        await campaignsAPI.pause(campaign.campaign_id)
+        setStatus('PAUSED')
+      } else {
+        await campaignsAPI.activateCampaign(campaign.campaign_id)
+        setStatus('ACTIVE')
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoadingStatus(false)
+    }
+  }
+
   return (
-    <div className="bg-surface border border-border rounded-xl overflow-hidden">
+    <div className={`bg-surface border border-border rounded-xl overflow-hidden ${status === 'PAUSED' ? 'opacity-70' : ''}`}>
       <div
         onClick={() => setOpen(o => !o)}
         className="flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-white/3 transition-colors"
@@ -40,17 +61,30 @@ function CampaignRow({ campaign }) {
 
         <div className="flex-1 min-w-0">
           <p className="text-white text-sm font-semibold truncate">{campaign.campaign_name}</p>
-          <p className="text-slate-600 text-xs">
+          <p className="text-slate-400 text-xs">
             {campaign.n_adsets} conjuntos · {campaign.n_ads} anuncios
             {campaign.objective && ` · ${campaign.objective.replace('OUTCOME_', '')}`}
           </p>
         </div>
 
-        <div className="flex items-center gap-4 shrink-0 text-xs">
+        <div className="flex items-center gap-3 shrink-0 text-xs">
+          {status === 'PAUSED' && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 hidden sm:inline">PAUSADA</span>
+          )}
+          <button
+            onClick={toggleStatus}
+            disabled={loadingStatus}
+            className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors text-slate-400 hover:text-slate-200 disabled:opacity-50 shrink-0"
+            title={status === 'ACTIVE' ? 'Pausar campaña' : 'Activar campaña'}
+          >
+            {loadingStatus
+              ? <Loader2 size={14} className="animate-spin" />
+              : status === 'ACTIVE' ? <Pause size={14} /> : <Play size={14} />}
+          </button>
           {campaign.cpa != null && (
             <div className="text-right hidden sm:block">
               <p className="text-slate-300 font-semibold">CPA ${fmt(campaign.cpa)}</p>
-              <p className="text-slate-600">{campaign.conversiones} conv.</p>
+              <p className="text-slate-400">{campaign.conversiones} conv.</p>
             </div>
           )}
           <div className="text-right hidden md:block">
@@ -64,7 +98,7 @@ function CampaignRow({ campaign }) {
               <p className={`text-xs font-medium ${campaign.ftir >= 60 ? 'text-green-400' : campaign.ftir >= 35 ? 'text-yellow-400' : 'text-slate-400'}`}>
                 FTIR {campaign.ftir}%
               </p>
-              <p className="text-slate-600 text-[10px]">{campaign.ftir >= 60 ? 'Prospección' : campaign.ftir >= 35 ? 'Mixto' : 'Retargeting'}</p>
+              <p className="text-slate-400 text-[10px]">{campaign.ftir >= 60 ? 'Prospección' : campaign.ftir >= 35 ? 'Mixto' : 'Retargeting'}</p>
             </div>
           )}
           <div className="text-right">
@@ -77,7 +111,7 @@ function CampaignRow({ campaign }) {
       {open && (
         <div className="border-t border-border bg-bg px-3 py-3 space-y-2">
           {(!campaign.adsets || campaign.adsets.length === 0) && (
-            <p className="text-slate-600 text-xs text-center py-3">Sin conjuntos con datos en el período</p>
+            <p className="text-slate-400 text-xs text-center py-3">Sin conjuntos con datos en el período</p>
           )}
           {campaign.adsets?.map(adset => (
             <AdSetRow key={adset.adset_id} adset={adset} />
@@ -92,6 +126,7 @@ export default function Campanas() {
   const { selected: account } = useAccount()
   const [days, setDays] = useState(30)
   const [showCrear, setShowCrear] = useState(false)
+  const [showBrief, setShowBrief] = useState(false)
 
   const { data, loading, error, refetch } = useFetch(
     () => campaignsAPI.tree(days, account?.id),
@@ -112,6 +147,7 @@ export default function Campanas() {
   return (
     <div className="space-y-5">
       {showCrear && <CrearCampana onClose={() => setShowCrear(false)} onCreated={() => { setShowCrear(false); refetch() }} account={account} />}
+      {showBrief && <BriefGenerador onClose={() => setShowBrief(false)} account={account} />}
 
       <div className="flex items-start justify-between">
         <div>
@@ -120,13 +156,22 @@ export default function Campanas() {
             {tree.length} campañas · {totales.adsets} conjuntos · {totales.ads} anuncios
           </p>
         </div>
-        <button
-          onClick={() => setShowCrear(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-violet-DEFAULT text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity cursor-pointer shrink-0"
-        >
-          <Plus size={15} />
-          Nueva campaña
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setShowBrief(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-white/5 border border-border text-slate-300 text-sm font-medium rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            <Sparkles size={15} className="text-violet-400" />
+            Brief IA
+          </button>
+          <button
+            onClick={() => setShowCrear(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-violet-DEFAULT text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            <Plus size={15} />
+            Nueva campaña
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2">
@@ -156,7 +201,7 @@ export default function Campanas() {
 
       <div className="space-y-3">
         {tree.length === 0 && (
-          <div className="text-center py-16 text-slate-600 text-sm">
+          <div className="text-center py-16 text-slate-400 text-sm">
             Sin campañas activas en el período seleccionado.
           </div>
         )}

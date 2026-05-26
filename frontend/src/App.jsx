@@ -11,6 +11,7 @@ import Organico from './pages/Organico'
 import Analytics from './pages/Analytics'
 import Timeline from './pages/Timeline'
 import Benchmarks from './pages/Benchmarks'
+import Estrategia from './pages/Estrategia'
 import ClientePublico from './pages/ClientePublico'
 import { useState } from 'react'
 
@@ -25,6 +26,7 @@ const pages = {
   analytics:       Analytics,
   timeline:        Timeline,
   benchmarks:      Benchmarks,
+  estrategia:      Estrategia,
 }
 
 function Dashboard() {

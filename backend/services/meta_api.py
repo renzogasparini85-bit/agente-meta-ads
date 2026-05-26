@@ -24,6 +24,14 @@ async def meta_post(path: str, data: dict, token: str) -> dict:
         return r.json()
 
 
+async def update_adset_budget(adset_id: str, token: str, new_daily_budget_cents: int) -> dict:
+    return await meta_post(adset_id, {"daily_budget": new_daily_budget_cents}, token)
+
+
+async def get_adset(adset_id: str, token: str) -> dict:
+    return await meta_get(adset_id, {"fields": "id,name,daily_budget,campaign_id"}, token)
+
+
 def date_range(days: int = None, since: str = None, until: str = None) -> dict:
     """Acepta días relativos O rango explícito since/until (YYYY-MM-DD)."""
     if since and until:
@@ -72,7 +80,7 @@ async def get_ad_insights(account_id: str, token: str, days: int = 30, since: st
     data = await meta_get(
         f"{account_id}/insights",
         {
-            "fields": "ad_id,ad_name,campaign_id,campaign_name,adset_id,spend,impressions,reach,clicks,ctr,cpc,frequency,purchase_roas,actions,date_start,date_stop",
+            "fields": "ad_id,ad_name,campaign_id,campaign_name,adset_id,spend,impressions,reach,clicks,ctr,cpc,frequency,purchase_roas,actions,video_p25_watched_actions,date_start,date_stop",
             "level": "ad",
             "time_range": json.dumps(date_range(days, since, until)),
             "filtering": json.dumps([{"field": "spend", "operator": "GREATER_THAN", "value": "0"}]),
@@ -113,6 +121,25 @@ async def get_ad_thumbnails(account_id: str, token: str) -> dict:
         return {}
 
 
+async def get_entity_statuses(account_id: str, token: str) -> dict:
+    """Devuelve {entity_id: status} para campañas, adsets y ads."""
+    if token == "DEMO":
+        return {}
+    results = {}
+    try:
+        for entity_type in ("campaigns", "adsets", "ads"):
+            data = await meta_get(
+                f"{account_id}/{entity_type}",
+                {"fields": "id,status", "effective_status": json.dumps(["ACTIVE", "PAUSED"]), "limit": "500"},
+                token,
+            )
+            for e in data.get("data", []):
+                results[e["id"]] = e.get("status", "ACTIVE")
+    except Exception:
+        pass
+    return results
+
+
 async def get_ad_created_dates(account_id: str, token: str) -> dict:
     """Devuelve {ad_id: created_time} para calcular antigüedad real del anuncio."""
     if token == "DEMO":
@@ -145,6 +172,48 @@ async def get_account_insights(account_id: str, token: str, days: int = 30) -> d
     )
     rows = data.get("data", [])
     return rows[0] if rows else {}
+
+
+async def get_ads_copy(ad_ids: list[str], token: str) -> dict:
+    """
+    Trae el copy de una lista de ad_ids.
+    Paso 1: obtiene el creative_id de cada ad.
+    Paso 2: obtiene body/title del creativo.
+    Devuelve dict: {ad_id: {"copy": str, "titulo": str}}
+    """
+    if not ad_ids:
+        return {}
+
+    async def _fetch_one(ad_id: str) -> tuple[str, dict]:
+        try:
+            # Paso 1: obtener creative_id
+            ad_data = await meta_get(ad_id, {"fields": "creative"}, token)
+            creative_id = ad_data.get("creative", {}).get("id")
+            if not creative_id:
+                return ad_id, {"copy": "", "titulo": ""}
+
+            # Paso 2: obtener copy del creativo
+            cr = await meta_get(creative_id, {"fields": "body,title,object_story_spec"}, token)
+            body  = cr.get("body", "")
+            title = cr.get("title", "")
+            story = cr.get("object_story_spec", {})
+            link  = story.get("link_data", {})
+            video = story.get("video_data", {})
+            if not body:
+                body = (link.get("message") or link.get("description")
+                        or video.get("message") or video.get("title") or "")
+            if not title:
+                title = link.get("name") or video.get("title") or ""
+            return ad_id, {"copy": body, "titulo": title}
+        except Exception:
+            return ad_id, {"copy": "", "titulo": ""}
+
+    results = await asyncio.gather(*[_fetch_one(aid) for aid in ad_ids], return_exceptions=True)
+    out = {}
+    for r in results:
+        if isinstance(r, tuple):
+            out[r[0]] = r[1]
+    return out
 
 
 async def pause_ad(ad_id: str, token: str) -> dict:
@@ -225,14 +294,19 @@ async def create_adset(
     page_id: str = None,
     start_time: str = None,
     end_time: str = None,
+    use_advantage_audience: bool = False,
 ) -> dict:
     """
     Crea un conjunto de anuncios.
-    targeting puede ser {} para Advantage+ o un dict con age_min, age_max,
-    geo_locations, flexible_spec (intereses), custom_audiences (públicos guardados).
+    targeting={} + use_advantage_audience=True → Advantage+ Audience (targeting_automation).
+    targeting con age/geo/interests → targeting manual.
     """
-    # Con CBO el presupuesto va en la campaña; el adset no lleva daily_budget
-    t = targeting if targeting else {"age_min": 18, "age_max": 65, "geo_locations": {"countries": ["AR"]}}
+    # Nota: usar `is not None` para no confundir {} (Advantage+) con None
+    t = targeting if targeting is not None else {"age_min": 18, "age_max": 65, "geo_locations": {"countries": ["AR"]}}
+    # Advantage+ requiere al menos geo_locations como base
+    if use_advantage_audience and not t.get("geo_locations"):
+        t = {"geo_locations": {"countries": ["AR"]}}
+
     body: dict = {
         "name": name,
         "campaign_id": campaign_id,
@@ -242,6 +316,8 @@ async def create_adset(
         "destination_type": destination_type,
         "status": "PAUSED",
     }
+    if use_advantage_audience:
+        body["targeting_automation"] = {"advantage_audience": 1}
     if page_id:
         body["promoted_object"] = {"page_id": page_id}
     if start_time:
@@ -413,10 +489,11 @@ async def get_hierarchy_tree(account_id: str, token: str, days: int = 30) -> lis
         }]
     }]
     """
-    campaigns_raw, adsets_raw, ads_raw = await asyncio.gather(
+    campaigns_raw, adsets_raw, ads_raw, statuses = await asyncio.gather(
         get_campaign_insights(account_id, token, days),
         get_adset_insights(account_id, token, days),
         get_ad_insights(account_id, token, days),
+        get_entity_statuses(account_id, token),
     )
 
     def compute_cpa(spend, conv):
@@ -448,8 +525,9 @@ async def get_hierarchy_tree(account_id: str, token: str, days: int = 30) -> lis
         ctr = float(ad.get("ctr", 0))
         freq = float(ad.get("frequency", 0))
         cpa = compute_cpa(spend, conv)
+        ad_id_v = ad.get("ad_id")
         ads_by_adset.setdefault(aid, []).append({
-            "ad_id": ad.get("ad_id"),
+            "ad_id": ad_id_v,
             "ad_name": ad.get("ad_name"),
             "spend": spend,
             "ctr": round(ctr, 2),
@@ -457,6 +535,7 @@ async def get_hierarchy_tree(account_id: str, token: str, days: int = 30) -> lis
             "conversiones": conv,
             "frecuencia": round(freq, 2),
             "estado": semaforo(cpa, freq, ctr),
+            "status": statuses.get(ad_id_v, "ACTIVE"),
         })
 
     # Indexar adsets por campaign_id
@@ -484,6 +563,7 @@ async def get_hierarchy_tree(account_id: str, token: str, days: int = 30) -> lis
             "frecuencia": round(freq, 2),
             "ftir": ftir_a,
             "estado": semaforo(cpa, freq, ctr),
+            "status": statuses.get(aid, "ACTIVE"),
             "ads": ads_by_adset.get(aid, []),
         })
 
@@ -511,6 +591,7 @@ async def get_hierarchy_tree(account_id: str, token: str, days: int = 30) -> lis
             "cpa": cpa,
             "conversiones": conv,
             "estado": semaforo(cpa, freq, ctr),
+            "status": statuses.get(cid, "ACTIVE"),
             "n_adsets": len(adsets),
             "n_ads": sum(len(a["ads"]) for a in adsets),
             "adsets": adsets,

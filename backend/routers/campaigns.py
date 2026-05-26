@@ -13,6 +13,7 @@ from services.meta_api import (
     get_hierarchy_tree,
     create_adset, create_ad, create_ad_creative,
     get_saved_audiences, get_ad_images, get_whatsapp_numbers,
+    update_adset_budget, get_adset, meta_post,
 )
 from routers.creatives import compute_roas_hibrido, compute_ftir, extract_marca
 from routers.account_resolver import resolve_account
@@ -239,6 +240,120 @@ async def whatsapp_numbers(
     return {"data": numbers, "page_id": page_id}
 
 
+@router.post("/adsets/{adset_id}/scale")
+async def scale_adset(
+    adset_id: str,
+    pct: int = Query(30, ge=5, le=100),
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    """Escala el presupuesto diario de un adset en un % dado."""
+    if client.meta_access_token == "DEMO":
+        return {"ok": True, "demo": True, "nuevo_budget": 0}
+    try:
+        adset = await get_adset(adset_id, client.meta_access_token)
+        current = int(adset.get("daily_budget", 0))
+        if not current:
+            raise HTTPException(status_code=400, detail="Este conjunto usa presupuesto de campaña (CBO) — ajustá el presupuesto a nivel campaña desde Meta Ads Manager.")
+        nuevo = int(current * (1 + pct / 100))
+        result = await update_adset_budget(adset_id, client.meta_access_token, nuevo)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    log = ActionLog(
+        client_id=client.id,
+        tipo="scale_adset",
+        descripcion=f"AdSet {adset_id} presupuesto escalado +{pct}% → ${nuevo // 100} ARS/día",
+        meta_id=adset_id,
+        resultado="ok",
+    )
+    db.add(log)
+    db.commit()
+    return {"ok": True, "adset_id": adset_id, "pct": pct, "nuevo_budget_cents": nuevo, "nuevo_budget_ars": nuevo // 100}
+
+
+@router.post("/{campaign_id}/activate")
+async def activate_campaign(
+    campaign_id: str,
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    """Activa una campaña pausada."""
+    if client.meta_access_token == "DEMO":
+        return {"ok": True}
+    try:
+        result = await meta_post(campaign_id, {"status": "ACTIVE"}, client.meta_access_token)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    log = ActionLog(
+        client_id=client.id,
+        tipo="activate_campaign",
+        descripcion=f"Campaña {campaign_id} activada desde dashboard",
+        meta_id=campaign_id,
+        resultado="ok",
+    )
+    db.add(log)
+    db.commit()
+    return {"ok": True, "meta_response": result}
+
+
+@router.post("/adsets/{adset_id}/pause")
+async def pause_adset_endpoint(
+    adset_id: str,
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    if client.meta_access_token == "DEMO":
+        result = {"success": True}
+    else:
+        try:
+            result = await meta_post(adset_id, {"status": "PAUSED"}, client.meta_access_token)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e))
+    log = ActionLog(client_id=client.id, tipo="pause_adset", descripcion=f"Conjunto {adset_id} pausado", meta_id=adset_id, resultado="ok")
+    db.add(log); db.commit()
+    return {"ok": True, "meta_response": result}
+
+
+@router.post("/adsets/{adset_id}/activate")
+async def activate_adset_endpoint(
+    adset_id: str,
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    if client.meta_access_token == "DEMO":
+        result = {"success": True}
+    else:
+        try:
+            result = await meta_post(adset_id, {"status": "ACTIVE"}, client.meta_access_token)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e))
+    log = ActionLog(client_id=client.id, tipo="activate_adset", descripcion=f"Conjunto {adset_id} activado", meta_id=adset_id, resultado="ok")
+    db.add(log); db.commit()
+    return {"ok": True, "meta_response": result}
+
+
+@router.post("/ads/{ad_id}/activate")
+async def activate_ad_endpoint(
+    ad_id: str,
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    if client.meta_access_token == "DEMO":
+        result = {"success": True}
+    else:
+        try:
+            result = await meta_post(ad_id, {"status": "ACTIVE"}, client.meta_access_token)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e))
+    log = ActionLog(client_id=client.id, tipo="activate_ad", descripcion=f"Anuncio {ad_id} activado", meta_id=ad_id, resultado="ok")
+    db.add(log); db.commit()
+    return {"ok": True, "meta_response": result}
+
+
 class CreateAdsetRequest(BaseModel):
     campaign_id: str
     nombre: str
@@ -264,7 +379,8 @@ async def create_adset_endpoint(
 ):
     ad_account_id, token, _, _, account_row = resolve_account(client, body.account_id, db)
 
-    if body.audience_type == "advantage":
+    use_advantage = body.audience_type == "advantage"
+    if use_advantage:
         targeting = {}
     elif body.audience_type == "saved" and body.saved_audience_id:
         targeting = {"custom_audiences": [{"id": body.saved_audience_id}]}
@@ -292,6 +408,7 @@ async def create_adset_endpoint(
             targeting=targeting,
             destination_type=body.destination_type,
             page_id=page_id,
+            use_advantage_audience=use_advantage,
         )
     except Exception as e:
         detail = str(e)

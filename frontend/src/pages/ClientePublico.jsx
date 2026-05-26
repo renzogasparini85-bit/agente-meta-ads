@@ -69,7 +69,7 @@ export default function ClientePublico() {
           <p className="text-white font-semibold text-sm">{data.marca}</p>
           <p className="text-slate-500 text-xs">Reporte publicitario · {data.periodo}</p>
         </div>
-        <p className="ml-auto text-slate-600 text-xs">
+        <p className="ml-auto text-slate-400 text-xs">
           {new Date(data.generado_en).toLocaleDateString('es-AR', { day: '2-digit', month: 'long' })}
         </p>
       </div>
@@ -119,12 +119,12 @@ export default function ClientePublico() {
                   <div className="flex items-center gap-4 shrink-0">
                     <div className="text-right">
                       <p className="text-white text-sm font-medium">{c.conversaciones}</p>
-                      <p className="text-slate-600 text-xs">conv.</p>
+                      <p className="text-slate-400 text-xs">conv.</p>
                     </div>
                     {c.cpa && (
                       <div className="text-right">
                         <p className="text-white text-sm font-medium">${fmt(c.cpa)}</p>
-                        <p className="text-slate-600 text-xs">CPA</p>
+                        <p className="text-slate-400 text-xs">CPA</p>
                       </div>
                     )}
                   </div>
@@ -157,7 +157,7 @@ export default function ClientePublico() {
           </div>
         )}
 
-        <p className="text-center text-slate-600 text-xs">
+        <p className="text-center text-slate-400 text-xs">
           Reporte generado por Meta Ads AI · Datos de Meta Graph API
         </p>
       </div>

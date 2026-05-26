@@ -107,7 +107,7 @@ export default function Login() {
           </form>
         </div>
 
-        <p className="text-center text-slate-600 text-xs mt-6">Powered by Claude AI · Anthropic</p>
+        <p className="text-center text-slate-400 text-xs mt-6">Powered by Claude AI · Anthropic</p>
       </div>
     </div>
   )
