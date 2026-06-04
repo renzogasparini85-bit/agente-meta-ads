@@ -29,9 +29,9 @@ class Client(Base):
     cpa_pausar = Column(Float, default=900.0)
     gasto_minimo_juzgar = Column(Float, default=3000.0)
 
-    # Umbrales de métricas GEM — estándar Ruta Pro 2026 (en moneda de la cuenta)
-    cpmr_verde  = Column(Float, default=20.0)     # CPMr < este valor = eficiente (USD) / ajustar según moneda
-    cpmr_rojo   = Column(Float, default=25.0)     # CPMr > este valor = rotar urgente
+    # Umbrales de métricas GEM — se inicializan con gem_defaults_por_moneda() al crear el cliente
+    cpmr_verde  = Column(Float, default=20.0)     # CPMr eficiente — valor en moneda local
+    cpmr_rojo   = Column(Float, default=25.0)     # CPMr rotar urgente — valor en moneda local
     hook_verde  = Column(Float, default=25.0)     # Hook Rate > este valor = potente
     hook_rojo   = Column(Float, default=15.0)     # Hook Rate < este valor = rediseñar
     freq_amarillo = Column(Float, default=2.5)    # Frecuencia > este = preparar variaciones
@@ -128,6 +128,50 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def gem_defaults_por_moneda(moneda: str) -> dict:
+    """
+    Devuelve los umbrales GEM calibrados a la moneda del cliente.
+    CPMr y CPA son los únicos sensibles a la moneda local.
+    Hook Rate, CTR, Frecuencia y Diversidad son porcentajes — iguales para todos.
+    """
+    moneda = (moneda or "ARS").upper()
+
+    # CPMr: costo por 1000 personas únicas alcanzadas
+    # CPA:  costo por conversación / resultado
+    cpmr_por_moneda = {
+        "USD": {"cpmr_verde": 20.0,    "cpmr_rojo": 25.0,    "cpa_escalar": 8.0,    "cpa_replicar": 12.0,  "cpa_pausar": 20.0,   "gasto_minimo": 5.0   },
+        "ARS": {"cpmr_verde": 20000.0, "cpmr_rojo": 28000.0, "cpa_escalar": 5000.0, "cpa_replicar": 8000.0,"cpa_pausar": 15000.0,"gasto_minimo": 3000.0},
+        "MXN": {"cpmr_verde": 350.0,   "cpmr_rojo": 450.0,   "cpa_escalar": 150.0,  "cpa_replicar": 250.0, "cpa_pausar": 400.0,  "gasto_minimo": 80.0  },
+        "BRL": {"cpmr_verde": 100.0,   "cpmr_rojo": 130.0,   "cpa_escalar": 40.0,   "cpa_replicar": 70.0,  "cpa_pausar": 120.0,  "gasto_minimo": 20.0  },
+        "CLP": {"cpmr_verde": 18000.0, "cpmr_rojo": 24000.0, "cpa_escalar": 6000.0, "cpa_replicar": 10000.0,"cpa_pausar": 18000.0,"gasto_minimo": 3000.0},
+        "COP": {"cpmr_verde": 80000.0, "cpmr_rojo": 110000.0,"cpa_escalar": 30000.0,"cpa_replicar": 50000.0,"cpa_pausar": 90000.0,"gasto_minimo": 15000.0},
+    }
+
+    m = cpmr_por_moneda.get(moneda, cpmr_por_moneda["USD"])
+
+    return {
+        # CPMr — depende de moneda
+        "cpmr_verde":  m["cpmr_verde"],
+        "cpmr_rojo":   m["cpmr_rojo"],
+        # CPA — depende de moneda (defaults genéricos; el cliente los ajusta a su negocio)
+        "cpa_escalar":         m["cpa_escalar"],
+        "cpa_replicar":        m["cpa_replicar"],
+        "cpa_pausar":          m["cpa_pausar"],
+        "gasto_minimo_juzgar": m["gasto_minimo"],
+        # Métricas sin moneda — iguales para todos
+        "hook_verde":          25.0,
+        "hook_rojo":           15.0,
+        "freq_amarillo":       2.5,
+        "freq_rojo":           3.5,
+        "ctr_bueno":           2.0,
+        "ctr_malo":            0.5,
+        "conv_semana_rojo":    50.0,
+        "conv_semana_verde":   100.0,
+        "diversidad_amarillo": 40.0,
+        "diversidad_rojo":     60.0,
+    }
 
 
 def init_db():

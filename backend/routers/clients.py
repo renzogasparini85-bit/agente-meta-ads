@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from database import get_db, Client, AdAccount
+from database import get_db, Client, AdAccount, gem_defaults_por_moneda
 from auth import hash_password, get_current_client
 import os, json
 
@@ -142,6 +142,16 @@ def update_my_settings(
         'freq_amarillo','freq_rojo','ctr_bueno','ctr_malo',
         'conv_semana_rojo','conv_semana_verde','diversidad_amarillo','diversidad_rojo',
     ]
+
+    # Si cambia la moneda y no se enviaron umbrales nuevos, recalibrar automáticamente
+    nueva_moneda = getattr(body, 'moneda', None)
+    if nueva_moneda and nueva_moneda.upper() != (client.moneda or 'ARS').upper():
+        payload_tiene_cpmr = getattr(body, 'cpmr_verde', None) is not None
+        if not payload_tiene_cpmr:
+            defaults = gem_defaults_por_moneda(nueva_moneda)
+            for k, v in defaults.items():
+                setattr(client, k, v)
+
     for f in fields:
         val = getattr(body, f, None)
         if val is not None:
@@ -182,6 +192,9 @@ def create_client(
     if existing:
         raise HTTPException(status_code=409, detail="Ya existe un cliente con ese email")
 
+    moneda = (body.moneda or "ARS").upper()
+    defaults = gem_defaults_por_moneda(moneda)
+
     client = Client(
         nombre=body.nombre,
         email=body.email,
@@ -189,6 +202,8 @@ def create_client(
         meta_access_token=body.meta_access_token,
         meta_ad_account_id=body.meta_ad_account_id,
         telegram_chat_id=body.telegram_chat_id,
+        moneda=moneda,
+        **defaults,
     )
     db.add(client)
     db.commit()

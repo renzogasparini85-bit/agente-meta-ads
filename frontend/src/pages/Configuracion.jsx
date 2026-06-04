@@ -307,10 +307,10 @@ export default function Configuracion({ onClose }) {
               {[
                 {
                   titulo: 'CPMr — Costo por 1000 alcance único',
-                  nota: 'En la moneda de tu cuenta Meta. Estándar 2026: < $20 verde · > $25 rojo',
+                  nota: `En ${form.moneda || 'tu moneda local'}. Referencia 2026: USD $20 verde · $25 rojo · ARS $20.000 verde · $28.000 rojo`,
                   campos: [
-                    { key: 'cpmr_verde', label: 'Verde (eficiente) — menor a', color: 'green', hint: form.moneda || 'USD' },
-                    { key: 'cpmr_rojo',  label: 'Rojo (rotar urgente) — mayor a', color: 'red', hint: form.moneda || 'USD' },
+                    { key: 'cpmr_verde', label: 'Verde (eficiente) — menor a', color: 'green', hint: form.moneda || 'moneda' },
+                    { key: 'cpmr_rojo',  label: 'Rojo (rotar urgente) — mayor a', color: 'red', hint: form.moneda || 'moneda' },
                   ]
                 },
                 {

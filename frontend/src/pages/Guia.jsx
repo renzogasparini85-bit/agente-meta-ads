@@ -140,9 +140,9 @@ export default function Guia() {
           label="CPMr — Costo por 1000 personas únicas alcanzadas"
           formula="(inversión / alcance) × 1000"
           simple="Te dice cuánto cuesta llegar a 1000 personas distintas. Es diferente al CPM tradicional porque el CPM conta impresiones (la misma persona puede ver el anuncio 5 veces). El CPMr solo cuenta personas únicas, por eso es más honesto."
-          good="< $20 USD"
-          warn="$20–$25 USD"
-          bad="> $25 USD"
+          good="USD < $20 · ARS < $20.000"
+          warn="USD $20–$25 · ARS $20k–$28k"
+          bad="USD > $25 · ARS > $28.000"
         />
 
         <MetricRow
