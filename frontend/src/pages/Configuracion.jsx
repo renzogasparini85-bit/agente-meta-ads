@@ -282,11 +282,26 @@ export default function Configuracion({ onClose }) {
 
           {tab === 'metricas' && (
             <>
-              <div className="bg-violet-DEFAULT/5 border border-violet-DEFAULT/15 rounded-xl px-4 py-3">
-                <p className="text-white text-xs font-semibold mb-1">Umbrales GEM — Estándar Ruta Pro 2026</p>
+              <div className="bg-violet-DEFAULT/5 border border-violet-DEFAULT/15 rounded-xl px-4 py-3 space-y-2">
+                <p className="text-white text-xs font-semibold">Umbrales GEM — Estándar Ruta Pro 2026</p>
                 <p className="text-slate-400 text-xs leading-relaxed">
-                  Los valores por defecto siguen el estándar profesional 2026. Podés ajustarlos según tu industria y objetivos — los cambios impactan los semáforos en Estrategia, Creativos y el Informe GEM.
+                  Estos valores definen los semáforos verde/amarillo/rojo que ves en Estrategia, Creativos, Alertas e Informe GEM.
+                  Los defaults ya vienen calibrados al estándar profesional 2026 — solo ajustalos si tu industria o mercado tiene referencias distintas.
                 </p>
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  <div className="bg-green-400/8 border border-green-400/20 rounded-lg px-2 py-1.5 text-center">
+                    <p className="text-green-400 text-[10px] font-semibold">Verde</p>
+                    <p className="text-green-300 text-[10px]">Dentro del objetivo — mantener o escalar</p>
+                  </div>
+                  <div className="bg-yellow-400/8 border border-yellow-400/20 rounded-lg px-2 py-1.5 text-center">
+                    <p className="text-yellow-400 text-[10px] font-semibold">Amarillo</p>
+                    <p className="text-yellow-300 text-[10px]">Zona de atención — monitorear de cerca</p>
+                  </div>
+                  <div className="bg-red-400/8 border border-red-400/20 rounded-lg px-2 py-1.5 text-center">
+                    <p className="text-red-400 text-[10px] font-semibold">Rojo</p>
+                    <p className="text-red-300 text-[10px]">Acción inmediata requerida</p>
+                  </div>
+                </div>
               </div>
 
               {[
