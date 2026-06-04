@@ -6,6 +6,7 @@ import { PageLoading, ErrorState, Spinner } from '../components/LoadingState'
 import DateRangePicker from '../components/DateRangePicker'
 import CrearCampana from './CrearCampana'
 import { useAccount } from '../context/AccountContext'
+import { useAuth } from '../context/AuthContext'
 
 const badgeConfig = {
   escalar:          { label: 'Escalar',           icon: TrendingUp,    bg: 'bg-green-400/15      border-green-400/30',      text: 'text-green-400'   },
@@ -603,6 +604,7 @@ function ModalReplicar({ ad, account, onClose, onDone }) {
 // ── Componente principal ──────────────────────────────────────────
 export default function Creativos() {
   const { selected: account } = useAccount()
+  const { client } = useAuth()
   const [tab, setTab] = useState('creativos')
   const [dateRange, setDateRange] = useState({ days: 30, since: null, until: null })
   const { data: creatives, loading, error, refetch } = useFetch(
@@ -665,6 +667,9 @@ export default function Creativos() {
   // Acciones prioritarias (badge) independientes del segmento
   const accionables = base?.filter(c => ['escalar','optimizar','retener'].includes(c.badge)) || []
 
+  const cpmr_verde = client?.cpmr_verde ?? 20000
+  const cpmr_rojo  = client?.cpmr_rojo  ?? 28000
+
   const cardProps = (c, i) => ({
     c, rank: i,
     expanded: expandedId === c.id,
@@ -673,6 +678,7 @@ export default function Creativos() {
     onEscalar: () => setModalEscalar(c),
     onReplicar: () => setModalReplicar(c),
     onVariacion: () => setModalVariacion(c),
+    cpmr_verde, cpmr_rojo,
   })
 
   return (
@@ -973,7 +979,7 @@ function Section({ title, subtitle, color, children }) {
 }
 
 // ── Tarjeta de creativo ───────────────────────────────────────────
-function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar, onReplicar, onVariacion }) {
+function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar, onReplicar, onVariacion, cpmr_verde = 20000, cpmr_rojo = 28000 }) {
   const canEscalar  = c.badge === 'escalar'
   const canReplicar = ['replicar','retener','escalar'].includes(c.badge)
   const canOptimizar = c.badge === 'optimizar'
@@ -1034,9 +1040,17 @@ function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar
           <p className="text-slate-400 text-xs mb-3 italic">Sin conversiones registradas</p>
         )}
 
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-2">
           <Metric label="CTR"   value={`${c.ctr}%`} good={c.ctr >= 3} warn={c.ctr >= 1.5} />
           <Metric label="Frec." value={c.frecuencia} warn={c.frecuencia > 2} bad={c.frecuencia > 2.5} />
+          <Metric
+            label="CPMr"
+            value={c.cpmr != null ? `$${Number(c.cpmr).toLocaleString('es-AR', { maximumFractionDigits: 0 })}` : '—'}
+            good={c.cpmr != null && c.cpmr <= cpmr_verde}
+            warn={c.cpmr != null && c.cpmr > cpmr_verde && c.cpmr <= cpmr_rojo}
+            bad={c.cpmr != null && c.cpmr > cpmr_rojo}
+            tooltip={`Costo por 1000 personas únicas alcanzadas. Verde < $${cpmr_verde.toLocaleString('es-AR')} · Rojo > $${cpmr_rojo.toLocaleString('es-AR')}`}
+          />
           <Metric
             label="ROAS"
             value={c.roas != null ? `${c.roas}x` : '—'}
