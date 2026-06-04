@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Settings, Save, Check, TrendingUp, MessageCircle, Key, RefreshCw, ExternalLink, BarChart2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
@@ -42,6 +42,35 @@ export default function Configuracion({ onClose }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState(null)
+
+  // Fetch fresh settings from server on mount to get accurate GEM thresholds
+  useEffect(() => {
+    api.get('/clients/me/settings').then(res => {
+      const d = res.data
+      setForm(f => ({
+        ...f,
+        moneda:              d.moneda              ?? f.moneda,
+        cpa_escalar:         d.cpa_escalar         ?? f.cpa_escalar,
+        cpa_replicar:        d.cpa_replicar        ?? f.cpa_replicar,
+        cpa_pausar:          d.cpa_pausar          ?? f.cpa_pausar,
+        ticket_promedio:     d.ticket_promedio      != null ? d.ticket_promedio : f.ticket_promedio,
+        tasa_cierre:         d.tasa_cierre          != null ? d.tasa_cierre     : f.tasa_cierre,
+        roas_meta:           d.roas_meta           ?? f.roas_meta,
+        cpmr_verde:          d.cpmr_verde          ?? f.cpmr_verde,
+        cpmr_rojo:           d.cpmr_rojo           ?? f.cpmr_rojo,
+        hook_verde:          d.hook_verde          ?? f.hook_verde,
+        hook_rojo:           d.hook_rojo           ?? f.hook_rojo,
+        freq_amarillo:       d.freq_amarillo       ?? f.freq_amarillo,
+        freq_rojo:           d.freq_rojo           ?? f.freq_rojo,
+        ctr_bueno:           d.ctr_bueno           ?? f.ctr_bueno,
+        ctr_malo:            d.ctr_malo            ?? f.ctr_malo,
+        conv_semana_rojo:    d.conv_semana_rojo    ?? f.conv_semana_rojo,
+        conv_semana_verde:   d.conv_semana_verde   ?? f.conv_semana_verde,
+        diversidad_amarillo: d.diversidad_amarillo ?? f.diversidad_amarillo,
+        diversidad_rojo:     d.diversidad_rojo     ?? f.diversidad_rojo,
+      }))
+    }).catch(() => {}) // silently ignore if endpoint doesn't exist yet
+  }, [])
   const [tokenCorto, setTokenCorto] = useState('')
   const [savingToken, setSavingToken] = useState(false)
   const [savedToken, setSavedToken] = useState(null) // { expires_days }

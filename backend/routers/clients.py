@@ -129,6 +129,32 @@ def update_my_brand(
     return {"ok": True, "scope": "global", **_client_brand(client)}
 
 
+@router.get("/me/settings")
+def get_my_settings(client: Client = Depends(get_current_client)):
+    return {
+        "moneda": client.moneda,
+        "cpa_escalar": client.cpa_escalar,
+        "cpa_replicar": client.cpa_replicar,
+        "cpa_pausar": client.cpa_pausar,
+        "gasto_minimo_juzgar": client.gasto_minimo_juzgar,
+        "ticket_promedio": client.ticket_promedio,
+        "tasa_cierre": client.tasa_cierre,
+        "roas_meta": client.roas_meta,
+        "cpmr_verde": client.cpmr_verde,
+        "cpmr_rojo": client.cpmr_rojo,
+        "hook_verde": client.hook_verde,
+        "hook_rojo": client.hook_rojo,
+        "freq_amarillo": client.freq_amarillo,
+        "freq_rojo": client.freq_rojo,
+        "ctr_bueno": client.ctr_bueno,
+        "ctr_malo": client.ctr_malo,
+        "conv_semana_rojo": client.conv_semana_rojo,
+        "conv_semana_verde": client.conv_semana_verde,
+        "diversidad_amarillo": client.diversidad_amarillo,
+        "diversidad_rojo": client.diversidad_rojo,
+    }
+
+
 @router.put("/me/settings")
 def update_my_settings(
     body: UpdateSettingsRequest,
