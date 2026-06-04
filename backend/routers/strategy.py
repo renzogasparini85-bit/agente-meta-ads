@@ -301,6 +301,18 @@ async def strategy_overview(
         if hook_avg is not None and hook_avg < client.hook_rojo:
             señal_rotacion = "hook_bajo" if not señal_rotacion else "rotar_urgente"
 
+        # Estado del ángulo para la matriz visual
+        if señal_rotacion == "rotar_urgente":
+            estado_angulo = "critico"
+        elif señal_rotacion in ("cpmr_alto", "hook_bajo"):
+            estado_angulo = "atencion"
+        elif cpa_avg is not None and cpa_avg <= client.cpa_escalar:
+            estado_angulo = "escalar"
+        elif len(data["ads"]) == 0:
+            estado_angulo = "oportunidad"
+        else:
+            estado_angulo = "estable"
+
         ads_clean = [{k: v for k, v in a.items() if k != "_angulo_detectado"} for a in data["ads"]]
         biblioteca_list.append({
             "angulo":          angulo,
@@ -312,6 +324,7 @@ async def strategy_overview(
             "hook_rate_promedio": hook_avg,
             "ctr_promedio":    ctr_avg,
             "señal_rotacion":  señal_rotacion,
+            "estado_angulo":   estado_angulo,
             "ads":             ads_clean,
         })
 
@@ -333,6 +346,24 @@ async def strategy_overview(
         }
         for a in acciones
     ]
+
+    # Agregar ángulos del framework que no tienen ads activos (oportunidades)
+    angulos_en_uso = {b["angulo"] for b in biblioteca_list}
+    for angulo_framework in ANGULOS_FRAMEWORK:
+        if angulo_framework not in angulos_en_uso:
+            biblioteca_list.append({
+                "angulo":          angulo_framework,
+                "n_ads":           0,
+                "total_spend":     0,
+                "total_conv":      0,
+                "cpa_promedio":    None,
+                "cpmr_promedio":   None,
+                "hook_rate_promedio": None,
+                "ctr_promedio":    None,
+                "señal_rotacion":  None,
+                "estado_angulo":   "oportunidad",
+                "ads":             [],
+            })
 
     return {
         "days":            days,
