@@ -289,3 +289,77 @@ async def scan_me(
 
     db.commit()
     return {"ok": True, "alertas_generadas": new_alerts, "ads_analizados": len(ads)}
+
+
+# ── Notificaciones externas ──────────────────────────────────────────
+
+@router.post("/notify-now")
+async def notify_now(
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    """
+    Disparo manual: escanea la cuenta del usuario logueado y envía WhatsApp si hay alertas.
+    Útil para probar la integración o pedir el resumen en cualquier momento.
+    """
+    from services.notificaciones import enviar_whatsapp, formatear_alerta_whatsapp
+
+    if not client.whatsapp_number:
+        raise HTTPException(status_code=400, detail="No tenés número de WhatsApp configurado. Agregalo en Configuración → Notificaciones.")
+
+    # Escanear primero
+    n = await _scan_client(client, db)
+    db.commit()
+
+    # Traer alertas activas (las recién creadas + las previas sin resolver)
+    alertas = db.query(Alert).filter(
+        Alert.client_id == client.id,
+        Alert.estado == "activa",
+    ).order_by(Alert.creado_en.desc()).limit(10).all()
+
+    if not alertas:
+        return {"ok": True, "enviado": False, "motivo": "Sin alertas activas — no se envió mensaje", "alertas_nuevas": n}
+
+    alertas_dict = [{"tipo": a.tipo, "mensaje": a.mensaje, "severidad": a.severidad} for a in alertas]
+    mensaje = formatear_alerta_whatsapp(client.nombre, alertas_dict, client.moneda or "ARS")
+    resultado = enviar_whatsapp(client.whatsapp_number, mensaje)
+
+    return {
+        "ok": resultado["ok"],
+        "enviado": resultado["ok"],
+        "alertas_nuevas": n,
+        "alertas_en_mensaje": len(alertas_dict),
+        "whatsapp_numero": client.whatsapp_number,
+        **resultado,
+    }
+
+
+@router.get("/notify-config")
+def get_notify_config(client: Client = Depends(get_current_client)):
+    """Devuelve la configuración actual de notificaciones del cliente."""
+    from services.notificaciones import _twilio_ok
+    return {
+        "whatsapp_number": client.whatsapp_number,
+        "notif_diaria_activa": client.notif_diaria_activa,
+        "notif_hora": client.notif_hora,
+        "twilio_configurado": _twilio_ok(),
+    }
+
+
+@router.put("/notify-config")
+def update_notify_config(
+    whatsapp_number: str = None,
+    notif_diaria_activa: bool = None,
+    notif_hora: int = None,
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    """Guarda la configuración de notificaciones del cliente."""
+    if whatsapp_number is not None:
+        client.whatsapp_number = whatsapp_number.strip() or None
+    if notif_diaria_activa is not None:
+        client.notif_diaria_activa = notif_diaria_activa
+    if notif_hora is not None:
+        client.notif_hora = max(0, min(23, notif_hora))
+    db.commit()
+    return {"ok": True, "whatsapp_number": client.whatsapp_number, "notif_diaria_activa": client.notif_diaria_activa, "notif_hora": client.notif_hora}

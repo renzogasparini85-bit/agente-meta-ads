@@ -8,3 +8,5 @@ httpx==0.28.0
 sqlalchemy==2.0.36
 python-multipart==0.0.12
 anthropic==0.40.0
+twilio==9.10.9
+APScheduler==3.11.2

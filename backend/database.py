@@ -60,6 +60,11 @@ class Client(Base):
     marca_competidores = Column(Text, nullable=True)      # competidores de referencia
     sitio_web          = Column(Text, nullable=True)
 
+    # Notificaciones externas
+    whatsapp_number      = Column(String, nullable=True)   # E.164 ej: +5491112345678
+    notif_diaria_activa  = Column(Boolean, default=False)
+    notif_hora           = Column(Integer, default=9)      # hora UTC para enviar (0-23)
+
     ad_accounts     = relationship("AdAccount", back_populates="client")
     alerts          = relationship("Alert", back_populates="client")
     recommendations = relationship("Recommendation", back_populates="client")

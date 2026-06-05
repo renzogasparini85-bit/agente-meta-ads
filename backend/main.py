@@ -1,9 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-import os
+import os, asyncio, logging
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 from database import init_db, SessionLocal, Client
 from auth import hash_password
@@ -62,10 +66,82 @@ app.include_router(brief_router)
 app.include_router(strategy_router)
 
 
+scheduler = AsyncIOScheduler()
+
+
 @app.on_event("startup")
-def startup():
+async def startup():
     init_db()
     _seed_default_client()
+    _start_scheduler()
+
+
+@app.on_event("shutdown")
+def shutdown():
+    if scheduler.running:
+        scheduler.shutdown()
+
+
+def _start_scheduler():
+    """Inicia el cron de alertas diarias. Hora configurable vía NOTIF_HORA_UTC (default 12 UTC)."""
+    hora_utc = int(os.getenv("NOTIF_HORA_UTC", "12"))
+    scheduler.add_job(
+        _job_alertas_diarias,
+        CronTrigger(hour=hora_utc, minute=0),
+        id="alertas_diarias",
+        replace_existing=True,
+    )
+    scheduler.start()
+    logger.info(f"Scheduler iniciado — alertas diarias a las {hora_utc}:00 UTC")
+
+
+async def _job_alertas_diarias():
+    """
+    Job diario: escanea todos los clientes con notificaciones activas
+    y envía WhatsApp si hay alertas.
+    """
+    from routers.smart_alerts import _scan_client
+    from routers.alerts import router as _  # noqa: ensure loaded
+    from database import Alert
+    from services.notificaciones import enviar_whatsapp, formatear_alerta_whatsapp
+
+    db = SessionLocal()
+    try:
+        clientes = db.query(Client).filter(
+            Client.activo == True,
+            Client.notif_diaria_activa == True,
+            Client.whatsapp_number != None,
+        ).all()
+
+        logger.info(f"[Cron alertas] {len(clientes)} cliente(s) con notificaciones activas")
+
+        for client in clientes:
+            try:
+                n = await _scan_client(client, db)
+                db.commit()
+
+                alertas = db.query(Alert).filter(
+                    Alert.client_id == client.id,
+                    Alert.estado == "activa",
+                ).order_by(Alert.creado_en.desc()).limit(10).all()
+
+                if not alertas:
+                    logger.info(f"[Cron] {client.nombre} — sin alertas, no se envía")
+                    continue
+
+                alertas_dict = [{"tipo": a.tipo, "mensaje": a.mensaje, "severidad": a.severidad} for a in alertas]
+                mensaje = formatear_alerta_whatsapp(client.nombre, alertas_dict, client.moneda or "ARS")
+                resultado = enviar_whatsapp(client.whatsapp_number, mensaje)
+
+                if resultado["ok"]:
+                    logger.info(f"[Cron] WhatsApp enviado a {client.nombre} ({client.whatsapp_number})")
+                else:
+                    logger.error(f"[Cron] Error enviando a {client.nombre}: {resultado.get('error')}")
+
+            except Exception as e:
+                logger.error(f"[Cron] Error procesando {client.nombre}: {e}")
+    finally:
+        db.close()
 
 
 def _seed_default_client():

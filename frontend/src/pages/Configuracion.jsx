@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Settings, Save, Check, TrendingUp, MessageCircle, Key, RefreshCw, ExternalLink, BarChart2, Zap, CheckCircle } from 'lucide-react'
+import { X, Settings, Save, Check, TrendingUp, MessageCircle, Key, RefreshCw, ExternalLink, BarChart2, Zap, CheckCircle, Bell, Send } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useAccount } from '../context/AccountContext'
 import api from '../services/api'
@@ -74,13 +74,55 @@ export default function Configuracion({ onClose }) {
         diversidad_rojo:     d.diversidad_rojo     ?? f.diversidad_rojo,
       }))
     }).catch(err => console.error('[Configuracion] settings fetch failed:', err?.response?.status, err?.message))
+
+    api.get('/alerts/notify-config').then(res => {
+      setNotif(res.data)
+    }).catch(() => {})
   }, [])
+  const [notif, setNotif] = useState({ whatsapp_number: '', notif_diaria_activa: false, notif_hora: 9, twilio_configurado: false })
+  const [savingNotif, setSavingNotif] = useState(false)
+  const [savedNotif, setSavedNotif] = useState(false)
+  const [sendingTest, setSendingTest] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+
   const [tokenCorto, setTokenCorto] = useState('')
   const [savingToken, setSavingToken] = useState(false)
   const [savedToken, setSavedToken] = useState(null) // { expires_days }
   const [errorToken, setErrorToken] = useState(null)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSaveNotif = async () => {
+    setSavingNotif(true)
+    setSavedNotif(false)
+    try {
+      const params = new URLSearchParams()
+      if (notif.whatsapp_number !== undefined) params.set('whatsapp_number', notif.whatsapp_number)
+      params.set('notif_diaria_activa', notif.notif_diaria_activa)
+      params.set('notif_hora', notif.notif_hora)
+      const res = await api.put(`/alerts/notify-config?${params}`)
+      setNotif(prev => ({ ...prev, ...res.data }))
+      setSavedNotif(true)
+      setTimeout(() => setSavedNotif(false), 2500)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setSavingNotif(false)
+    }
+  }
+
+  const handleSendTest = async () => {
+    setSendingTest(true)
+    setTestResult(null)
+    try {
+      const res = await api.post('/alerts/notify-now')
+      setTestResult({ ok: res.data.ok, msg: res.data.ok ? `✓ Mensaje enviado (${res.data.alertas_en_mensaje} alertas)` : `Error: ${res.data.error || 'Sin respuesta'}` })
+    } catch (e) {
+      setTestResult({ ok: false, msg: e?.response?.data?.detail || 'Error al enviar' })
+    } finally {
+      setSendingTest(false)
+    }
+  }
 
   const handleCalibrate = async (apply = false) => {
     setCalibrating(true)
@@ -209,10 +251,11 @@ export default function Configuracion({ onClose }) {
         {/* Tabs */}
         <div className="flex border-b border-border px-2">
           {[
-            { id: 'cpa',     label: 'CPA',      icon: TrendingUp },
-            { id: 'metricas',label: 'Métricas', icon: BarChart2 },
-            { id: 'roas',    label: 'ROAS',     icon: MessageCircle },
-            { id: 'token',   label: 'Token',    icon: Key },
+            { id: 'cpa',          label: 'CPA',           icon: TrendingUp },
+            { id: 'metricas',     label: 'Métricas',      icon: BarChart2 },
+            { id: 'roas',         label: 'ROAS',          icon: MessageCircle },
+            { id: 'notif',        label: 'Notificaciones',icon: Bell },
+            { id: 'token',        label: 'Token',         icon: Key },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -475,6 +518,105 @@ export default function Configuracion({ onClose }) {
             </>
           )}
 
+          {tab === 'notif' && (
+            <div className="space-y-5">
+              {/* Estado Twilio */}
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-xs ${notif.twilio_configurado ? 'bg-green-400/8 border-green-400/20 text-green-400' : 'bg-yellow-400/8 border-yellow-400/20 text-yellow-300'}`}>
+                {notif.twilio_configurado
+                  ? <><CheckCircle size={14} /> Twilio configurado — WhatsApp listo para enviar</>
+                  : <><Bell size={14} /> Twilio no configurado — agregá las credenciales en el <code className="bg-black/30 px-1 rounded">.env</code> del backend</>
+                }
+              </div>
+
+              {!notif.twilio_configurado && (
+                <div className="bg-bg border border-border rounded-xl px-4 py-3 space-y-1.5 text-xs text-slate-400">
+                  <p className="text-white font-semibold text-xs mb-2">Setup rápido (10 min)</p>
+                  <p>1. Crear cuenta gratis en <span className="text-violet-300">twilio.com</span></p>
+                  <p>2. Messaging → Try WhatsApp → activar Sandbox</p>
+                  <p>3. Agregar al <code className="bg-black/30 px-1 rounded">.env</code>:</p>
+                  <div className="bg-black/40 rounded-lg px-3 py-2 font-mono text-[10px] text-green-300 space-y-0.5">
+                    <p>TWILIO_ACCOUNT_SID=ACxxxxxxx</p>
+                    <p>TWILIO_AUTH_TOKEN=xxxxxxx</p>
+                    <p>TWILIO_WHATSAPP_FROM=whatsapp:+14155238886</p>
+                  </div>
+                  <p className="text-slate-500 text-[10px]">Reiniciar el backend después de agregar las variables.</p>
+                </div>
+              )}
+
+              {/* Número de WhatsApp */}
+              <div>
+                <label className="text-slate-400 text-xs font-medium block mb-1.5">Tu número de WhatsApp</label>
+                <input
+                  type="tel"
+                  placeholder="+54 9 11 1234 5678"
+                  value={notif.whatsapp_number || ''}
+                  onChange={e => setNotif(n => ({ ...n, whatsapp_number: e.target.value }))}
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-DEFAULT/60 transition-colors"
+                />
+                <p className="text-slate-600 text-[10px] mt-1">Formato internacional con código de país, ej: +5491112345678</p>
+              </div>
+
+              {/* Activar notificación diaria */}
+              <div className="flex items-center justify-between gap-4 bg-bg border border-border rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-white text-xs font-semibold">Resumen diario automático</p>
+                  <p className="text-slate-500 text-[10px] mt-0.5">El sistema escanea tu cuenta y te avisa si hay alertas críticas</p>
+                </div>
+                <button
+                  onClick={() => setNotif(n => ({ ...n, notif_diaria_activa: !n.notif_diaria_activa }))}
+                  className={`w-10 h-6 rounded-full transition-colors cursor-pointer shrink-0 ${notif.notif_diaria_activa ? 'bg-violet-DEFAULT' : 'bg-border'}`}
+                >
+                  <div className={`w-4 h-4 bg-white rounded-full mx-1 transition-transform ${notif.notif_diaria_activa ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              {/* Hora */}
+              {notif.notif_diaria_activa && (
+                <div>
+                  <label className="text-slate-400 text-xs font-medium block mb-1.5">Hora de envío (hora local Argentina)</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {[7, 8, 9, 10, 11, 12].map(h => (
+                      <button
+                        key={h}
+                        onClick={() => setNotif(n => ({ ...n, notif_hora: h }))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${notif.notif_hora === h ? 'bg-violet-DEFAULT/20 border-violet-DEFAULT/50 text-violet-glow' : 'border-border text-slate-400 hover:text-white'}`}
+                      >
+                        {h}:00
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-slate-600 text-[10px] mt-1.5">Solo se envía si hay alertas activas en tu cuenta ese día</p>
+                </div>
+              )}
+
+              {/* Botones */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleSaveNotif}
+                  disabled={savingNotif}
+                  className="flex-1 flex items-center justify-center gap-2 bg-violet-DEFAULT text-white font-semibold py-2.5 rounded-lg hover:opacity-90 disabled:opacity-60 cursor-pointer transition-opacity text-sm"
+                >
+                  {savedNotif ? <><Check size={14} /> Guardado</> : <><Save size={14} /> Guardar</>}
+                </button>
+                <button
+                  onClick={handleSendTest}
+                  disabled={sendingTest || !notif.whatsapp_number || !notif.twilio_configurado}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-40 cursor-pointer transition-colors text-sm"
+                  title={!notif.twilio_configurado ? 'Twilio no configurado' : !notif.whatsapp_number ? 'Ingresá tu número primero' : 'Enviar resumen ahora'}
+                >
+                  {sendingTest ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                  Probar
+                </button>
+              </div>
+
+              {testResult && (
+                <p className={`text-xs px-3 py-2 rounded-lg border ${testResult.ok ? 'bg-green-400/10 border-green-400/20 text-green-400' : 'bg-red-400/10 border-red-400/20 text-red-400'}`}>
+                  {testResult.msg}
+                </p>
+              )}
+            </div>
+          )}
+
           {tab === 'token' && (
             <>
               <div className="bg-violet-DEFAULT/5 border border-violet-DEFAULT/15 rounded-xl px-4 py-3">
@@ -530,7 +672,7 @@ export default function Configuracion({ onClose }) {
         </div>
 
         {/* Footer fijo — Guardar */}
-        {tab !== 'token' && (
+        {tab !== 'token' && tab !== 'notif' && (
           <div className="px-6 py-4 border-t border-border shrink-0">
             {error && <p className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2 mb-3">{error}</p>}
             <button
