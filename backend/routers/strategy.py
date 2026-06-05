@@ -436,7 +436,7 @@ Umbrales GEM 2026:
 - Fase aprendizaje: <50 conv/semana = rojo (consolidar en CBO). 50-100 = amarillo. >100 = verde.
 - Fatiga creativa: Frecuencia ≥3.0 = rojo. 2.0-2.9 = amarillo. <2.0 = verde.
 - Hook Rate: <15% = rojo (rotar urgente). 15-25% = amarillo. >25% = verde.
-- CPMr: >$5000 ARS = rojo (audiencia saturada). $3000-5000 = amarillo. <$3000 = verde.
+- CPMr: >$7000 ARS = rojo (fatiga/competencia alta). $3000-7000 = amarillo. <$3000 = verde (subastas muy económicas).
 - Escalamiento: Escalar máx +20% cada 3-4 días. Solo si CPA < objetivo y conv > 50/semana.
 - Diversidad: >60% mismo ángulo = rojo. 40-60% = amarillo. <40% = verde.
 

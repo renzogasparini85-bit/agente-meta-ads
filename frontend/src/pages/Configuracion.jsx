@@ -69,7 +69,7 @@ export default function Configuracion({ onClose }) {
         diversidad_amarillo: d.diversidad_amarillo ?? f.diversidad_amarillo,
         diversidad_rojo:     d.diversidad_rojo     ?? f.diversidad_rojo,
       }))
-    }).catch(() => {}) // silently ignore if endpoint doesn't exist yet
+    }).catch(err => console.error('[Configuracion] settings fetch failed:', err?.response?.status, err?.message))
   }, [])
   const [tokenCorto, setTokenCorto] = useState('')
   const [savingToken, setSavingToken] = useState(false)
@@ -336,7 +336,7 @@ export default function Configuracion({ onClose }) {
               {[
                 {
                   titulo: 'CPMr — Costo por 1000 alcance único',
-                  nota: `En ${form.moneda || 'tu moneda local'}. Referencia 2026: USD $20 verde · $25 rojo · ARS $20.000 verde · $28.000 rojo`,
+                  nota: `En ${form.moneda || 'tu moneda local'}. Referencia 2026 para Argentina: verde < $3.000 ARS · rojo > $7.000 ARS. Para USD: verde < $2,5 · rojo > $6.`,
                   campos: [
                     { key: 'cpmr_verde', label: 'Verde (eficiente) — menor a', color: 'green', hint: form.moneda || 'moneda' },
                     { key: 'cpmr_rojo',  label: 'Rojo (rotar urgente) — mayor a', color: 'red', hint: form.moneda || 'moneda' },

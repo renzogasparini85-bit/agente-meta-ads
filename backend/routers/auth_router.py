@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from typing import Optional
 from database import get_db, Client
 from auth import verify_password, create_token
 
@@ -22,8 +23,8 @@ class LoginResponse(BaseModel):
     cpa_replicar: float = 650.0
     cpa_pausar: float = 900.0
     gasto_minimo_juzgar: float = 3000.0
-    ticket_promedio: float = None
-    tasa_cierre: float = None
+    ticket_promedio: Optional[float] = None
+    tasa_cierre: Optional[float] = None
     roas_meta: float = 3.0
     cpmr_verde: float = 20.0
     cpmr_rojo: float = 25.0

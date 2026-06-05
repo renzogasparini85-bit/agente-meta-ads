@@ -139,14 +139,18 @@ def gem_defaults_por_moneda(moneda: str) -> dict:
     moneda = (moneda or "ARS").upper()
 
     # CPMr: costo por 1000 personas únicas alcanzadas
-    # CPA:  costo por conversación / resultado
+    # Fuente ARS: benchmark validado 2026 para mercado argentino
+    #   Verde < $3.000  → subastas económicas, contenido relevante
+    #   Amarillo $3.000–$7.000 → rango normal con audiencias segmentadas
+    #   Rojo > $7.000   → fatiga, audiencia pequeña o alta competencia
+    # Otras monedas: escaladas proporcionalmente desde ARS (ref: 1 USD ≈ 1.200 ARS)
     cpmr_por_moneda = {
-        "USD": {"cpmr_verde": 20.0,    "cpmr_rojo": 25.0,    "cpa_escalar": 8.0,    "cpa_replicar": 12.0,  "cpa_pausar": 20.0,   "gasto_minimo": 5.0   },
-        "ARS": {"cpmr_verde": 20000.0, "cpmr_rojo": 28000.0, "cpa_escalar": 5000.0, "cpa_replicar": 8000.0,"cpa_pausar": 15000.0,"gasto_minimo": 3000.0},
-        "MXN": {"cpmr_verde": 350.0,   "cpmr_rojo": 450.0,   "cpa_escalar": 150.0,  "cpa_replicar": 250.0, "cpa_pausar": 400.0,  "gasto_minimo": 80.0  },
-        "BRL": {"cpmr_verde": 100.0,   "cpmr_rojo": 130.0,   "cpa_escalar": 40.0,   "cpa_replicar": 70.0,  "cpa_pausar": 120.0,  "gasto_minimo": 20.0  },
-        "CLP": {"cpmr_verde": 18000.0, "cpmr_rojo": 24000.0, "cpa_escalar": 6000.0, "cpa_replicar": 10000.0,"cpa_pausar": 18000.0,"gasto_minimo": 3000.0},
-        "COP": {"cpmr_verde": 80000.0, "cpmr_rojo": 110000.0,"cpa_escalar": 30000.0,"cpa_replicar": 50000.0,"cpa_pausar": 90000.0,"gasto_minimo": 15000.0},
+        "USD": {"cpmr_verde": 2.5,     "cpmr_rojo": 6.0,     "cpa_escalar": 8.0,    "cpa_replicar": 12.0,  "cpa_pausar": 20.0,   "gasto_minimo": 5.0   },
+        "ARS": {"cpmr_verde": 3000.0,  "cpmr_rojo": 7000.0,  "cpa_escalar": 5000.0, "cpa_replicar": 8000.0,"cpa_pausar": 15000.0,"gasto_minimo": 3000.0},
+        "MXN": {"cpmr_verde": 45.0,    "cpmr_rojo": 105.0,   "cpa_escalar": 150.0,  "cpa_replicar": 250.0, "cpa_pausar": 400.0,  "gasto_minimo": 80.0  },
+        "BRL": {"cpmr_verde": 12.0,    "cpmr_rojo": 29.0,    "cpa_escalar": 40.0,   "cpa_replicar": 70.0,  "cpa_pausar": 120.0,  "gasto_minimo": 20.0  },
+        "CLP": {"cpmr_verde": 2700.0,  "cpmr_rojo": 6300.0,  "cpa_escalar": 6000.0, "cpa_replicar": 10000.0,"cpa_pausar": 18000.0,"gasto_minimo": 3000.0},
+        "COP": {"cpmr_verde": 10000.0, "cpmr_rojo": 23000.0, "cpa_escalar": 30000.0,"cpa_replicar": 50000.0,"cpa_pausar": 90000.0,"gasto_minimo": 15000.0},
     }
 
     m = cpmr_por_moneda.get(moneda, cpmr_por_moneda["USD"])

@@ -86,9 +86,9 @@ Principio rector: **"El creativo es el nuevo targeting."** No se usa segmentaci�
 ### Umbrales de acción
 
 ```
-CPMr < $3.000 ARS     → Eficiente, mantener
-CPMr $3.000–$5.000    → Monitorear, preparar rotación
-CPMr > $5.000         → ROTAR CREATIVO URGENTE
+CPMr < $3.000 ARS     → Excelente — subastas económicas, contenido muy relevante
+CPMr $3.000–$7.000    → Aceptable — rango normal para audiencias segmentadas
+CPMr > $7.000 ARS     → ROTAR CREATIVO — fatiga, audiencia pequeña o alta competencia
 
 Hook Rate > 25%       → Hook potente, escalar
 Hook Rate 15–25%      → Mejorar primeros 3 segundos
