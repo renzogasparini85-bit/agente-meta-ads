@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { X, Settings, Save, Check, TrendingUp, MessageCircle, Key, RefreshCw, ExternalLink, BarChart2 } from 'lucide-react'
+import { X, Settings, Save, Check, TrendingUp, MessageCircle, Key, RefreshCw, ExternalLink, BarChart2, Zap, CheckCircle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useAccount } from '../context/AccountContext'
 import api from '../services/api'
 
 const MONEDAS = [
@@ -16,6 +17,7 @@ const MONEDAS = [
 
 export default function Configuracion({ onClose }) {
   const { client, updateClient } = useAuth()
+  const { selected: account } = useAccount()
   const [tab, setTab] = useState('cpa')
   const [form, setForm] = useState({
     moneda:            client?.moneda            || 'ARS',
@@ -42,6 +44,8 @@ export default function Configuracion({ onClose }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState(null)
+  const [calibrating, setCalibrating] = useState(false)
+  const [calibPreview, setCalibPreview] = useState(null) // { cpmr_verde, cpmr_rojo, motivo, fuente, n_ads }
 
   // Fetch fresh settings from server on mount to get accurate GEM thresholds
   useEffect(() => {
@@ -77,6 +81,26 @@ export default function Configuracion({ onClose }) {
   const [errorToken, setErrorToken] = useState(null)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleCalibrate = async (apply = false) => {
+    setCalibrating(true)
+    setCalibPreview(null)
+    try {
+      const params = new URLSearchParams({ apply: apply ? 'true' : 'false' })
+      if (account?.id) params.set('account_id', account.id)
+      const res = await api.post(`/clients/me/calibrate?${params}`)
+      const d = res.data
+      setCalibPreview(d)
+      if (apply) {
+        setForm(f => ({ ...f, cpmr_verde: d.cpmr_verde, cpmr_rojo: d.cpmr_rojo }))
+        updateClient({ cpmr_verde: d.cpmr_verde, cpmr_rojo: d.cpmr_rojo })
+      }
+    } catch (e) {
+      setCalibPreview({ error: e?.response?.data?.detail || 'Error al calibrar' })
+    } finally {
+      setCalibrating(false)
+    }
+  }
 
   // ROAS estimado en base a los inputs actuales
   const roasPreview = (() => {
@@ -336,11 +360,52 @@ export default function Configuracion({ onClose }) {
               {[
                 {
                   titulo: 'CPMr — Costo por 1000 alcance único',
-                  nota: `En ${form.moneda || 'tu moneda local'}. Referencia 2026 para Argentina: verde < $3.000 ARS · rojo > $7.000 ARS. Para USD: verde < $2,5 · rojo > $6.`,
+                  nota: `En ${form.moneda || 'tu moneda local'}. Referencia 2026 Argentina: verde < $3.000 · rojo > $7.000. Podés calibrar automáticamente desde tu historial.`,
                   campos: [
                     { key: 'cpmr_verde', label: 'Verde (eficiente) — menor a', color: 'green', hint: form.moneda || 'moneda' },
                     { key: 'cpmr_rojo',  label: 'Rojo (rotar urgente) — mayor a', color: 'red', hint: form.moneda || 'moneda' },
-                  ]
+                  ],
+                  extraSlot: (
+                    <div className="mt-3 space-y-2">
+                      {/* Botón calibrar */}
+                      <button
+                        onClick={() => handleCalibrate(false)}
+                        disabled={calibrating}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-DEFAULT/10 border border-violet-DEFAULT/30 text-violet-glow text-xs font-medium hover:bg-violet-DEFAULT/20 cursor-pointer transition-colors disabled:opacity-50"
+                      >
+                        {calibrating ? <RefreshCw size={12} className="animate-spin" /> : <Zap size={12} />}
+                        {calibrating ? 'Analizando historial…' : 'Calibrar con mi historial (90 días)'}
+                      </button>
+
+                      {/* Preview resultado */}
+                      {calibPreview && !calibPreview.error && (
+                        <div className={`rounded-lg px-3 py-2.5 border text-xs space-y-2 ${calibPreview.fuente === 'defaults' ? 'bg-yellow-400/8 border-yellow-400/20' : 'bg-green-400/8 border-green-400/20'}`}>
+                          <p className={calibPreview.fuente === 'defaults' ? 'text-yellow-300' : 'text-green-400'}>
+                            {calibPreview.fuente === 'defaults' ? '⚠ ' : '✓ '}{calibPreview.motivo}
+                          </p>
+                          <div className="flex gap-4">
+                            <span>🟢 Verde: <strong>${Number(calibPreview.cpmr_verde).toLocaleString('es-AR')}</strong></span>
+                            <span>🔴 Rojo: <strong>${Number(calibPreview.cpmr_rojo).toLocaleString('es-AR')}</strong></span>
+                          </div>
+                          {calibPreview.fuente !== 'defaults' && !calibPreview.aplicado && (
+                            <button
+                              onClick={() => handleCalibrate(true)}
+                              disabled={calibrating}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-400/15 border border-green-400/30 text-green-400 text-xs font-semibold cursor-pointer hover:bg-green-400/25 transition-colors disabled:opacity-50"
+                            >
+                              <CheckCircle size={12} /> Aplicar estos valores
+                            </button>
+                          )}
+                          {calibPreview.aplicado && (
+                            <p className="text-green-400 font-semibold flex items-center gap-1"><Check size={12} /> Aplicado</p>
+                          )}
+                        </div>
+                      )}
+                      {calibPreview?.error && (
+                        <p className="text-red-400 text-xs">{calibPreview.error}</p>
+                      )}
+                    </div>
+                  )
                 },
                 {
                   titulo: 'Hook Rate — % que ve el 25% del video',
@@ -404,6 +469,7 @@ export default function Configuracion({ onClose }) {
                       </div>
                     ))}
                   </div>
+                  {grupo.extraSlot}
                 </div>
               ))}
             </>
