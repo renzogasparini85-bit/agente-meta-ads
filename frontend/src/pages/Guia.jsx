@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, BookOpen, Zap, Target, TrendingUp, AlertTriangle, BarChart2, Layers, Star, Info, CheckCircle, XCircle, HelpCircle } from 'lucide-react'
+import { ChevronDown, ChevronRight, BookOpen, Zap, Target, TrendingUp, AlertTriangle, BarChart2, Layers, Star, Info, CheckCircle, XCircle, HelpCircle, SlidersHorizontal } from 'lucide-react'
 
 // ── Acordeón ─────────────────────────────────────────────────────
 function Section({ icon: Icon, title, subtitle, color = 'text-violet-400', children, defaultOpen = false }) {
@@ -139,10 +139,10 @@ export default function Guia() {
         <MetricRow
           label="CPMr — Costo por 1000 personas únicas alcanzadas"
           formula="(inversión / alcance) × 1000"
-          simple="Te dice cuánto cuesta llegar a 1000 personas distintas. Es diferente al CPM tradicional porque el CPM conta impresiones (la misma persona puede ver el anuncio 5 veces). El CPMr solo cuenta personas únicas, por eso es más honesto."
-          good="USD < $20 · ARS < $20.000"
-          warn="USD $20–$25 · ARS $20k–$28k"
-          bad="USD > $25 · ARS > $28.000"
+          simple="Te dice cuánto cuesta llegar a 1000 personas distintas. Es diferente al CPM tradicional porque el CPM cuenta impresiones (la misma persona puede ver el anuncio 5 veces). El CPMr solo cuenta personas únicas, por eso es más honesto. No existe un valor universal — depende del país, la industria y la época del año."
+          good="ARS < $3.000 · USD < $2,5"
+          warn="ARS $3.000–$7.000 · USD $2,5–$6"
+          bad="ARS > $7.000 · USD > $6"
         />
 
         <MetricRow
@@ -368,7 +368,59 @@ export default function Guia() {
         </div>
       </Section>
 
-      {/* 8. Las pantallas del sistema */}
+      {/* 8. Calibración de umbrales */}
+      <Section icon={SlidersHorizontal} title="Calibración automática de umbrales" subtitle="Por qué los valores por defecto pueden no ser los tuyos" color="text-cyan-400">
+
+        <p className="text-slate-300 text-xs leading-relaxed">
+          Los umbrales de CPMr (verde / rojo) son los puntos de corte que el sistema usa para colorear las métricas y calcular el Health Score. El problema es que <span className="text-white font-semibold">no existe un valor universal</span> — una cuenta en Argentina en temporada alta tiene un CPMr muy distinto a la misma cuenta en enero.
+        </p>
+
+        <Callout type="beginner">
+          Pensalo así: si todos los semáforos de la ciudad están calibrados para autos que van a 60 km/h pero tu calle es una autopista, los semáforos te van a mentir. Lo mismo pasa con umbrales genéricos aplicados a tu cuenta específica.
+        </Callout>
+
+        <div className="space-y-3">
+          <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Cómo funciona la calibración</p>
+          {[
+            { paso: '1', titulo: 'El sistema descarga tus últimos 90 días de anuncios', desc: 'Trae todos los anuncios que tuvieron gasto real en ese período y calcula el CPMr individual de cada uno.' },
+            { paso: '2', titulo: 'Ordena los resultados de menor a mayor', desc: 'Con 10 o más anuncios usa percentiles estadísticos. El 25% mejor de tu cuenta define el verde. El 25% peor define el rojo.' },
+            { paso: '3', titulo: 'Te muestra una preview antes de aplicar', desc: 'Podés ver los valores sugeridos y decidir si aplicarlos o ajustarlos manualmente. Nada cambia sin tu confirmación.' },
+          ].map(r => (
+            <div key={r.paso} className="flex gap-3 bg-bg border border-border rounded-xl px-4 py-3">
+              <span className="w-6 h-6 rounded-full bg-cyan-400/15 border border-cyan-400/30 text-cyan-400 text-xs font-bold flex items-center justify-center shrink-0">{r.paso}</span>
+              <div>
+                <p className="text-white text-xs font-semibold">{r.titulo}</p>
+                <p className="text-slate-400 text-xs mt-0.5 leading-relaxed">{r.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <Callout type="info">
+          <span className="font-semibold">¿Sin historial suficiente?</span> Si tu cuenta tiene menos de 5 anuncios con datos, el sistema usa los valores de referencia validados para tu moneda (ARS: verde &lt; $3.000 · rojo &gt; $7.000) y te avisa que todavía no hay suficientes datos para calibrar. En 30 días de actividad ya podés recalibrar.
+        </Callout>
+
+        <div className="bg-bg border border-border rounded-xl px-4 py-3 space-y-1">
+          <p className="text-slate-400 text-[11px] font-semibold uppercase tracking-wide mb-2">Cuándo recalibrar</p>
+          {[
+            'Al lanzar una cuenta nueva (después de 30 días)',
+            'Cuando cambiás de temporada (Black Friday, verano, etc.)',
+            'Si ampliás a nuevos mercados o países',
+            'Cuando el CPA cambió mucho y los semáforos ya no tienen sentido',
+          ].map((s, i) => (
+            <div key={i} className="flex gap-2 text-xs text-slate-400">
+              <CheckCircle size={12} className="text-cyan-400 shrink-0 mt-0.5" />
+              {s}
+            </div>
+          ))}
+        </div>
+
+        <p className="text-slate-500 text-xs">
+          Encontrás el botón en <span className="text-white font-semibold">Configuración → pestaña GEM → sección CPMr</span>.
+        </p>
+      </Section>
+
+      {/* 9. Las pantallas del sistema */}
       <Section icon={Target} title="Para qué sirve cada pantalla" subtitle="Mapa rápido del sistema" color="text-slate-400">
         <div className="space-y-2">
           {[
