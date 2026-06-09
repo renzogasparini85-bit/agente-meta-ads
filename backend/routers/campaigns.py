@@ -133,6 +133,33 @@ async def campaign_tree(
     return {"tree": tree, "days": days}
 
 
+@router.get("/names")
+async def list_campaign_names(
+    account_id: str = Query(None),
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    """Lista ligera: id + nombre + estado para selector de acciones."""
+    from services.meta_api import get_campaigns
+    ad_account_id, token, _, campaign_filter, _ = resolve_account(client, account_id, db)
+    if token == "DEMO":
+        return [
+            {"id": "120200000001", "nombre": "Campaña Demo FOMO", "estado": "ACTIVE"},
+            {"id": "120200000002", "nombre": "Campaña Demo Testimonial", "estado": "PAUSED"},
+        ]
+    try:
+        raw = await get_campaigns(ad_account_id, token)
+    except Exception:
+        return []
+    result = []
+    for c in raw:
+        nombre = c.get("name", "")
+        if campaign_filter and campaign_filter.lower() not in nombre.lower():
+            continue
+        result.append({"id": c.get("id"), "nombre": nombre, "estado": c.get("status", "")})
+    return result
+
+
 @router.post("/{campaign_id}/pause")
 async def pause_campaign_endpoint(
     campaign_id: str,

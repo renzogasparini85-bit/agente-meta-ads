@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Settings, Save, Check, TrendingUp, MessageCircle, Key, RefreshCw, ExternalLink, BarChart2, Zap, CheckCircle, Bell, Send } from 'lucide-react'
+import { X, Settings, Save, Check, TrendingUp, MessageCircle, Key, RefreshCw, ExternalLink, BarChart2, Zap, CheckCircle, Bell, Send, Mail } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useAccount } from '../context/AccountContext'
 import api from '../services/api'
@@ -79,7 +79,7 @@ export default function Configuracion({ onClose }) {
       setNotif(res.data)
     }).catch(() => {})
   }, [])
-  const [notif, setNotif] = useState({ whatsapp_number: '', notif_diaria_activa: false, notif_hora: 9, twilio_configurado: false })
+  const [notif, setNotif] = useState({ telegram_chat_id: '', notif_email: '', notif_diaria_activa: false, notif_hora: 9, telegram_configurado: false, email_configurado: false })
   const [savingNotif, setSavingNotif] = useState(false)
   const [savedNotif, setSavedNotif] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
@@ -97,7 +97,8 @@ export default function Configuracion({ onClose }) {
     setSavedNotif(false)
     try {
       const params = new URLSearchParams()
-      if (notif.whatsapp_number !== undefined) params.set('whatsapp_number', notif.whatsapp_number)
+      params.set('telegram_chat_id', notif.telegram_chat_id || '')
+      params.set('notif_email', notif.notif_email || '')
       params.set('notif_diaria_activa', notif.notif_diaria_activa)
       params.set('notif_hora', notif.notif_hora)
       const res = await api.put(`/alerts/notify-config?${params}`)
@@ -116,7 +117,13 @@ export default function Configuracion({ onClose }) {
     setTestResult(null)
     try {
       const res = await api.post('/alerts/notify-now')
-      setTestResult({ ok: res.data.ok, msg: res.data.ok ? `✓ Mensaje enviado (${res.data.alertas_en_mensaje} alertas)` : `Error: ${res.data.error || 'Sin respuesta'}` })
+      if (res.data.ok) {
+        const canales = res.data.canales || {}
+        const ok = Object.entries(canales).filter(([, v]) => v?.ok).map(([k]) => k).join(' + ')
+        setTestResult({ ok: true, msg: `✓ Enviado por ${ok || 'canal'} (${res.data.alertas_en_mensaje} alertas)` })
+      } else {
+        setTestResult({ ok: false, msg: res.data.motivo || 'No se envió' })
+      }
     } catch (e) {
       setTestResult({ ok: false, msg: e?.response?.data?.detail || 'Error al enviar' })
     } finally {
@@ -133,9 +140,15 @@ export default function Configuracion({ onClose }) {
       const res = await api.post(`/clients/me/calibrate?${params}`)
       const d = res.data
       setCalibPreview(d)
-      if (apply) {
-        setForm(f => ({ ...f, cpmr_verde: d.cpmr_verde, cpmr_rojo: d.cpmr_rojo }))
-        updateClient({ cpmr_verde: d.cpmr_verde, cpmr_rojo: d.cpmr_rojo })
+      if (apply && d.metricas) {
+        const updates = {}
+        const m = d.metricas
+        if (m.cpmr)  { updates.cpmr_verde = m.cpmr.cpmr_verde;   updates.cpmr_rojo  = m.cpmr.cpmr_rojo }
+        if (m.hook)  { updates.hook_verde  = m.hook.hook_verde;   updates.hook_rojo  = m.hook.hook_rojo }
+        if (m.ctr)   { updates.ctr_bueno   = m.ctr.ctr_bueno;    updates.ctr_malo   = m.ctr.ctr_malo }
+        if (m.freq)  { updates.freq_amarillo = m.freq.freq_amarillo; updates.freq_rojo = m.freq.freq_rojo }
+        setForm(f => ({ ...f, ...updates }))
+        updateClient(updates)
       }
     } catch (e) {
       setCalibPreview({ error: e?.response?.data?.detail || 'Error al calibrar' })
@@ -422,21 +435,40 @@ export default function Configuracion({ onClose }) {
 
                       {/* Preview resultado */}
                       {calibPreview && !calibPreview.error && (
-                        <div className={`rounded-lg px-3 py-2.5 border text-xs space-y-2 ${calibPreview.fuente === 'defaults' ? 'bg-yellow-400/8 border-yellow-400/20' : 'bg-green-400/8 border-green-400/20'}`}>
+                        <div className={`rounded-lg px-3 py-2.5 border text-xs space-y-3 ${calibPreview.fuente === 'defaults' ? 'bg-yellow-400/8 border-yellow-400/20' : 'bg-green-400/8 border-green-400/20'}`}>
                           <p className={calibPreview.fuente === 'defaults' ? 'text-yellow-300' : 'text-green-400'}>
                             {calibPreview.fuente === 'defaults' ? '⚠ ' : '✓ '}{calibPreview.motivo}
                           </p>
-                          <div className="flex gap-4">
-                            <span>🟢 Verde: <strong>${Number(calibPreview.cpmr_verde).toLocaleString('es-AR')}</strong></span>
-                            <span>🔴 Rojo: <strong>${Number(calibPreview.cpmr_rojo).toLocaleString('es-AR')}</strong></span>
-                          </div>
+                          {calibPreview.metricas && (
+                            <div className="space-y-1.5">
+                              {[
+                                { key: 'cpmr', label: 'CPMr', prefix: '$', verde: 'cpmr_verde', rojo: 'cpmr_rojo' },
+                                { key: 'hook', label: 'Hook Rate', suffix: '%', verde: 'hook_verde', rojo: 'hook_rojo' },
+                                { key: 'ctr',  label: 'CTR', suffix: '%', verde: 'ctr_bueno', rojo: 'ctr_malo' },
+                                { key: 'freq', label: 'Frecuencia', verde: 'freq_amarillo', rojo: 'freq_rojo' },
+                              ].map(({ key, label, prefix='', suffix='', verde, rojo }) => {
+                                const m = calibPreview.metricas?.[key]
+                                if (!m) return null
+                                const isDefault = m.fuente === 'defaults'
+                                return (
+                                  <div key={key} className="flex items-center gap-2">
+                                    <span className={`w-16 shrink-0 ${isDefault ? 'text-slate-500' : 'text-slate-300'}`}>{label}</span>
+                                    {isDefault
+                                      ? <span className="text-slate-500 text-[10px]">sin historial suficiente</span>
+                                      : <span className="text-slate-300">🟢 {prefix}{Number(m[verde]).toLocaleString('es-AR')}{suffix} · 🔴 {prefix}{Number(m[rojo]).toLocaleString('es-AR')}{suffix}</span>
+                                    }
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
                           {calibPreview.fuente !== 'defaults' && !calibPreview.aplicado && (
                             <button
                               onClick={() => handleCalibrate(true)}
                               disabled={calibrating}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-400/15 border border-green-400/30 text-green-400 text-xs font-semibold cursor-pointer hover:bg-green-400/25 transition-colors disabled:opacity-50"
                             >
-                              <CheckCircle size={12} /> Aplicar estos valores
+                              <CheckCircle size={12} /> Aplicar todos los umbrales
                             </button>
                           )}
                           {calibPreview.aplicado && (
@@ -520,47 +552,95 @@ export default function Configuracion({ onClose }) {
 
           {tab === 'notif' && (
             <div className="space-y-5">
-              {/* Estado Twilio */}
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-xs ${notif.twilio_configurado ? 'bg-green-400/8 border-green-400/20 text-green-400' : 'bg-yellow-400/8 border-yellow-400/20 text-yellow-300'}`}>
-                {notif.twilio_configurado
-                  ? <><CheckCircle size={14} /> Twilio configurado — WhatsApp listo para enviar</>
-                  : <><Bell size={14} /> Twilio no configurado — agregá las credenciales en el <code className="bg-black/30 px-1 rounded">.env</code> del backend</>
-                }
-              </div>
 
-              {!notif.twilio_configurado && (
-                <div className="bg-bg border border-border rounded-xl px-4 py-3 space-y-1.5 text-xs text-slate-400">
-                  <p className="text-white font-semibold text-xs mb-2">Setup rápido (10 min)</p>
-                  <p>1. Crear cuenta gratis en <span className="text-violet-300">twilio.com</span></p>
-                  <p>2. Messaging → Try WhatsApp → activar Sandbox</p>
-                  <p>3. Agregar al <code className="bg-black/30 px-1 rounded">.env</code>:</p>
-                  <div className="bg-black/40 rounded-lg px-3 py-2 font-mono text-[10px] text-green-300 space-y-0.5">
-                    <p>TWILIO_ACCOUNT_SID=ACxxxxxxx</p>
-                    <p>TWILIO_AUTH_TOKEN=xxxxxxx</p>
-                    <p>TWILIO_WHATSAPP_FROM=whatsapp:+14155238886</p>
-                  </div>
-                  <p className="text-slate-500 text-[10px]">Reiniciar el backend después de agregar las variables.</p>
+              {/* ── Telegram ── */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Send size={13} className="text-violet-glow" />
+                  <p className="text-white text-xs font-semibold">Telegram</p>
+                  <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full border ${notif.telegram_configurado ? 'bg-green-400/10 border-green-400/20 text-green-400' : 'bg-yellow-400/10 border-yellow-400/20 text-yellow-400'}`}>
+                    {notif.telegram_configurado ? 'Bot activo' : 'Sin configurar'}
+                  </span>
                 </div>
-              )}
 
-              {/* Número de WhatsApp */}
-              <div>
-                <label className="text-slate-400 text-xs font-medium block mb-1.5">Tu número de WhatsApp</label>
-                <input
-                  type="tel"
-                  placeholder="+54 9 11 1234 5678"
-                  value={notif.whatsapp_number || ''}
-                  onChange={e => setNotif(n => ({ ...n, whatsapp_number: e.target.value }))}
-                  className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-DEFAULT/60 transition-colors"
-                />
-                <p className="text-slate-600 text-[10px] mt-1">Formato internacional con código de país, ej: +5491112345678</p>
+                {!notif.telegram_configurado && (
+                  <div className="bg-bg border border-border rounded-xl px-4 py-3 space-y-1.5 text-xs text-slate-400">
+                    <p className="text-white font-semibold text-xs mb-1.5">Setup (5 min, gratis)</p>
+                    <p>1. Abrí <span className="text-violet-300">@BotFather</span> en Telegram → <code className="bg-black/30 px-1 rounded">/newbot</code></p>
+                    <p>2. Copiá el token y agregalo al <code className="bg-black/30 px-1 rounded">.env</code>:</p>
+                    <div className="bg-black/40 rounded-lg px-3 py-2 font-mono text-[10px] text-green-300">
+                      TELEGRAM_BOT_TOKEN=1234567890:AAF...
+                    </div>
+                    <p>3. Mandá cualquier mensaje a tu bot y buscá tu Chat ID en:</p>
+                    <div className="bg-black/40 rounded-lg px-3 py-2 font-mono text-[10px] text-green-300 break-all">
+                      api.telegram.org/bot{'<TOKEN>'}/getUpdates
+                    </div>
+                    <p className="text-slate-500 text-[10px]">Reiniciar el backend después de agregar el token.</p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-slate-400 text-xs font-medium block mb-1.5">Tu Chat ID de Telegram</label>
+                  <input
+                    type="text"
+                    placeholder="123456789"
+                    value={notif.telegram_chat_id || ''}
+                    onChange={e => setNotif(n => ({ ...n, telegram_chat_id: e.target.value }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-DEFAULT/60 transition-colors"
+                  />
+                  <p className="text-slate-600 text-[10px] mt-1">Solo números, ej: 123456789</p>
+                </div>
               </div>
 
-              {/* Activar notificación diaria */}
+              {/* Divisor */}
+              <div className="border-t border-border" />
+
+              {/* ── Email ── */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Mail size={13} className="text-violet-glow" />
+                  <p className="text-white text-xs font-semibold">Email</p>
+                  <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full border ${notif.email_configurado ? 'bg-green-400/10 border-green-400/20 text-green-400' : 'bg-yellow-400/10 border-yellow-400/20 text-yellow-400'}`}>
+                    {notif.email_configurado ? 'SMTP activo' : 'Sin configurar'}
+                  </span>
+                </div>
+
+                {!notif.email_configurado && (
+                  <div className="bg-bg border border-border rounded-xl px-4 py-3 space-y-1.5 text-xs text-slate-400">
+                    <p className="text-white font-semibold text-xs mb-1.5">Setup SMTP (Gmail recomendado)</p>
+                    <p>1. Google Account → Seguridad → Contraseñas de aplicación</p>
+                    <p>2. Crear contraseña de app para "Correo"</p>
+                    <p>3. Agregar al <code className="bg-black/30 px-1 rounded">.env</code>:</p>
+                    <div className="bg-black/40 rounded-lg px-3 py-2 font-mono text-[10px] text-green-300 space-y-0.5">
+                      <p>SMTP_HOST=smtp.gmail.com</p>
+                      <p>SMTP_PORT=587</p>
+                      <p>SMTP_USER=tu@gmail.com</p>
+                      <p>SMTP_PASS=xxxx xxxx xxxx xxxx</p>
+                    </div>
+                    <p className="text-slate-500 text-[10px]">Reiniciar el backend después de agregar las variables.</p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-slate-400 text-xs font-medium block mb-1.5">Email para recibir alertas</label>
+                  <input
+                    type="email"
+                    placeholder="vos@ejemplo.com"
+                    value={notif.notif_email || ''}
+                    onChange={e => setNotif(n => ({ ...n, notif_email: e.target.value }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-DEFAULT/60 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Divisor */}
+              <div className="border-t border-border" />
+
+              {/* ── Frecuencia ── */}
               <div className="flex items-center justify-between gap-4 bg-bg border border-border rounded-xl px-4 py-3">
                 <div>
                   <p className="text-white text-xs font-semibold">Resumen diario automático</p>
-                  <p className="text-slate-500 text-[10px] mt-0.5">El sistema escanea tu cuenta y te avisa si hay alertas críticas</p>
+                  <p className="text-slate-500 text-[10px] mt-0.5">El sistema escanea y notifica si hay alertas críticas</p>
                 </div>
                 <button
                   onClick={() => setNotif(n => ({ ...n, notif_diaria_activa: !n.notif_diaria_activa }))}
@@ -570,7 +650,6 @@ export default function Configuracion({ onClose }) {
                 </button>
               </div>
 
-              {/* Hora */}
               {notif.notif_diaria_activa && (
                 <div>
                   <label className="text-slate-400 text-xs font-medium block mb-1.5">Hora de envío (hora local Argentina)</label>
@@ -585,7 +664,7 @@ export default function Configuracion({ onClose }) {
                       </button>
                     ))}
                   </div>
-                  <p className="text-slate-600 text-[10px] mt-1.5">Solo se envía si hay alertas activas en tu cuenta ese día</p>
+                  <p className="text-slate-600 text-[10px] mt-1.5">Solo se envía si hay alertas activas ese día</p>
                 </div>
               )}
 
@@ -600,9 +679,9 @@ export default function Configuracion({ onClose }) {
                 </button>
                 <button
                   onClick={handleSendTest}
-                  disabled={sendingTest || !notif.whatsapp_number || !notif.twilio_configurado}
+                  disabled={sendingTest || (!notif.telegram_chat_id && !notif.notif_email)}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-40 cursor-pointer transition-colors text-sm"
-                  title={!notif.twilio_configurado ? 'Twilio no configurado' : !notif.whatsapp_number ? 'Ingresá tu número primero' : 'Enviar resumen ahora'}
+                  title={!notif.telegram_chat_id && !notif.notif_email ? 'Configurá Telegram o Email primero' : 'Enviar resumen ahora'}
                 >
                   {sendingTest ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
                   Probar

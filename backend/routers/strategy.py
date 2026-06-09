@@ -15,8 +15,24 @@ import anthropic
 
 router = APIRouter(prefix="/strategy", tags=["strategy"])
 
-# Caché en memoria: ad_id -> angulo detectado por IA
-_angulo_cache: dict[str, str] = {}
+# Caché persistente: ad_id -> angulo detectado por IA (sobrevive reinicios)
+_CACHE_FILE = os.path.join(os.path.dirname(__file__), "..", "angulos_cache.json")
+
+def _load_cache() -> dict[str, str]:
+    try:
+        with open(_CACHE_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_cache(cache: dict[str, str]):
+    try:
+        with open(_CACHE_FILE, "w") as f:
+            json.dump(cache, f)
+    except Exception:
+        pass
+
+_angulo_cache: dict[str, str] = _load_cache()
 
 
 async def _clasificar_angulos_con_ia(ads: list[dict], token: str) -> dict[str, str]:
@@ -244,9 +260,13 @@ async def strategy_overview(
         try:
             token_actual = client.meta_access_token
             clasificados = await _clasificar_angulos_con_ia(ads_sin_angulo, token_actual)
+            nuevos = False
             for ad_id, angulo_ia in clasificados.items():
                 if angulo_ia and angulo_ia != "Sin ángulo definido":
                     _angulo_cache[ad_id] = angulo_ia
+                    nuevos = True
+            if nuevos:
+                _save_cache(_angulo_cache)
 
             # Reubicar anuncios que fueron clasificados
             if clasificados:

@@ -210,6 +210,47 @@ def update_my_settings(
     }
 
 
+def _pct(values: list, p: float) -> float:
+    """Percentil simple (0-1). Lista debe estar ordenada."""
+    if not values:
+        return 0.0
+    idx = max(0, min(len(values) - 1, int(len(values) * p)))
+    return round(values[idx], 2)
+
+
+def _calibrar_metrica(values: list, mayor_es_mejor: bool) -> dict | None:
+    """
+    Devuelve {verde, rojo, fuente} para una métrica.
+    mayor_es_mejor=True  → verde=p75, rojo=p25  (CTR, Hook Rate)
+    mayor_es_mejor=False → verde=p25, rojo=p75  (CPMr, Frecuencia)
+    """
+    n = len(values)
+    if n < 5:
+        return None
+    values = sorted(values)
+    if n >= 10:
+        fuente = "percentil_25_75"
+        if mayor_es_mejor:
+            verde = _pct(values, 0.75)
+            rojo  = _pct(values, 0.25)
+        else:
+            verde = _pct(values, 0.25)
+            rojo  = _pct(values, 0.75)
+    else:
+        fuente = "mediana_30pct"
+        med = statistics.median(values)
+        if mayor_es_mejor:
+            verde = round(med * 1.30, 2)
+            rojo  = round(med * 0.70, 2)
+        else:
+            verde = round(med * 0.70, 2)
+            rojo  = round(med * 1.30, 2)
+    # Garantizar verde != rojo
+    if verde == rojo:
+        rojo = round(verde * (1.5 if not mayor_es_mejor else 0.67), 2)
+    return {"verde": verde, "rojo": rojo, "fuente": fuente, "n": n}
+
+
 @router.post("/me/calibrate")
 async def calibrate_thresholds(
     apply: bool = Query(False),
@@ -218,82 +259,80 @@ async def calibrate_thresholds(
     db: Session = Depends(get_db),
 ):
     """
-    Calcula CPMr verde/rojo desde el historial real de la cuenta (últimos 90 días).
-    - Si hay >= 10 anuncios con reach: usa percentil 25 como verde y percentil 75 como rojo.
-    - Si hay 5-9 anuncios: usa mediana ±30% como aproximación.
-    - Si hay < 5 anuncios: devuelve los defaults de moneda sin calibrar.
-    Con apply=true guarda los valores en la DB.
+    Calibra todos los umbrales GEM desde el historial real (últimos 90 días):
+    CPMr, Hook Rate, CTR, Frecuencia.
+    Con apply=true guarda los valores en DB.
     """
-    # Resolver ad account
-    meta_account_id, token, moneda, _, _ = resolve_account(client, account_id, db)
-    if moneda:
-        defaults = gem_defaults_por_moneda(moneda)
-
+    meta_account_id, token, _, _, _ = resolve_account(client, account_id, db)
     defaults = gem_defaults_por_moneda(client.moneda or "ARS")
 
     try:
         ads = await get_ad_insights(meta_account_id, token, days=90)
     except Exception:
-        return {
-            "fuente": "defaults",
-            "motivo": "Error al conectar con Meta API",
-            "cpmr_verde": defaults["cpmr_verde"],
-            "cpmr_rojo": defaults["cpmr_rojo"],
-            "n_ads": 0,
-        }
+        return {"fuente": "defaults", "motivo": "Error Meta API", "n_ads": 0, **defaults}
 
-    # Calcular CPMr por anuncio
-    cpmr_values = []
+    cpmr_vals, hook_vals, ctr_vals, freq_vals = [], [], [], []
+
     for a in ads:
         spend = float(a.get("spend") or 0)
         reach = float(a.get("reach") or 0)
+        impr  = float(a.get("impressions") or 0)
+        ctr   = float(a.get("ctr") or 0)
+        freq  = float(a.get("frequency") or 0)
+
         if spend > 0 and reach > 0:
-            cpmr_values.append(spend / reach * 1000)
+            cpmr_vals.append(spend / reach * 1000)
 
-    n = len(cpmr_values)
+        # Hook Rate: sum video_p25 / impressions × 100
+        vp25_actions = a.get("video_p25_watched_actions") or []
+        vp25 = sum(float(x.get("value") or 0) for x in vp25_actions)
+        if impr > 0 and vp25 > 0:
+            hook_vals.append(vp25 / impr * 100)
 
-    if n < 5:
-        return {
-            "fuente": "defaults",
-            "motivo": f"Historial insuficiente ({n} anuncios con datos). Se necesitan al menos 5.",
-            "cpmr_verde": defaults["cpmr_verde"],
-            "cpmr_rojo": defaults["cpmr_rojo"],
-            "n_ads": n,
-        }
+        if ctr > 0:
+            ctr_vals.append(ctr)
+        if freq > 0:
+            freq_vals.append(freq)
 
-    cpmr_values.sort()
+    resultado = {"n_ads": len(ads), "aplicado": apply, "metricas": {}}
 
-    if n >= 10:
-        # Percentil 25 y 75
-        idx_verde = int(n * 0.25)
-        idx_rojo  = int(n * 0.75)
-        verde = round(cpmr_values[idx_verde], 2)
-        rojo  = round(cpmr_values[idx_rojo], 2)
-        fuente = "percentil_25_75"
-    else:
-        # 5-9 anuncios: mediana ±30%
-        med = statistics.median(cpmr_values)
-        verde = round(med * 0.70, 2)
-        rojo  = round(med * 1.30, 2)
-        fuente = "mediana_30pct"
+    calibraciones = {
+        "cpmr":  (_calibrar_metrica(cpmr_vals, mayor_es_mejor=False), "cpmr_verde",  "cpmr_rojo"),
+        "hook":  (_calibrar_metrica(hook_vals, mayor_es_mejor=True),  "hook_verde",  "hook_rojo"),
+        "ctr":   (_calibrar_metrica(ctr_vals,  mayor_es_mejor=True),  "ctr_bueno",   "ctr_malo"),
+        "freq":  (_calibrar_metrica(freq_vals, mayor_es_mejor=False), "freq_amarillo","freq_rojo"),
+    }
 
-    # Nunca dejar verde >= rojo
-    if verde >= rojo:
-        rojo = round(verde * 1.5, 2)
+    for nombre, (cal, campo_verde, campo_rojo) in calibraciones.items():
+        if cal:
+            resultado["metricas"][nombre] = {
+                "verde": cal["verde"], "rojo": cal["rojo"],
+                "fuente": cal["fuente"], "n": cal["n"],
+                campo_verde: cal["verde"], campo_rojo: cal["rojo"],
+            }
+            if apply:
+                setattr(client, campo_verde, cal["verde"])
+                setattr(client, campo_rojo,  cal["rojo"])
+        else:
+            n_disponible = len({"cpmr": cpmr_vals,"hook": hook_vals,"ctr": ctr_vals,"freq": freq_vals}[nombre])
+            resultado["metricas"][nombre] = {
+                "fuente": "defaults",
+                "motivo": f"Insuficiente historial ({n_disponible} anuncios)",
+                campo_verde: defaults.get(campo_verde),
+                campo_rojo:  defaults.get(campo_rojo),
+            }
 
     if apply:
-        client.cpmr_verde = verde
-        client.cpmr_rojo  = rojo
         db.commit()
 
-    return {
-        "fuente": fuente,
-        "motivo": f"Calibrado desde {n} anuncios de los últimos 90 días",
-        "cpmr_verde": verde,
-        "cpmr_rojo": rojo,
-        "n_ads": n,
-        "aplicado": apply,
-    }
+    # Atajos al nivel raíz para compatibilidad con el frontend actual
+    cpmr = resultado["metricas"].get("cpmr", {})
+    resultado["cpmr_verde"] = cpmr.get("cpmr_verde", defaults["cpmr_verde"])
+    resultado["cpmr_rojo"]  = cpmr.get("cpmr_rojo",  defaults["cpmr_rojo"])
+    resultado["fuente"]     = cpmr.get("fuente", "defaults")
+    resultado["motivo"]     = f"Calibrado desde {len(ads)} anuncios · 90 días"
+
+    return resultado
 
 
 @router.post("")

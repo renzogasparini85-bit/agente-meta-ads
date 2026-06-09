@@ -2,10 +2,21 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, D
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
+import os
 
-DATABASE_URL = "sqlite:///./metaads.db"
+# PostgreSQL en producción (DATABASE_URL en .env), SQLite como fallback local
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./metaads.db")
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# Render/Railway a veces devuelven "postgres://" — SQLAlchemy 2.x requiere "postgresql://"
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+_is_sqlite = DATABASE_URL.startswith("sqlite")
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False} if _is_sqlite else {},
+    pool_pre_ping=True,  # reconecta si la conexión se cayó (importante en PG serverless)
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -61,9 +72,10 @@ class Client(Base):
     sitio_web          = Column(Text, nullable=True)
 
     # Notificaciones externas
-    whatsapp_number      = Column(String, nullable=True)   # E.164 ej: +5491112345678
     notif_diaria_activa  = Column(Boolean, default=False)
-    notif_hora           = Column(Integer, default=9)      # hora UTC para enviar (0-23)
+    notif_hora           = Column(Integer, default=9)      # hora local Argentina para enviar (0-23)
+    notif_email          = Column(String, nullable=True)   # email para alertas diarias
+    # telegram_chat_id ya existe arriba — reutilizado para notificaciones
 
     ad_accounts     = relationship("AdAccount", back_populates="client")
     alerts          = relationship("Alert", back_populates="client")
@@ -125,6 +137,26 @@ class ActionLog(Base):
     meta_id = Column(String, nullable=True)
     resultado = Column(String, nullable=True)      # ok | error
     ejecutado_en = Column(DateTime, default=datetime.utcnow)
+
+
+class Hypothesis(Base):
+    __tablename__ = "hypotheses"
+    id              = Column(Integer, primary_key=True, index=True)
+    client_id       = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    titulo          = Column(String, nullable=False)
+    descripcion     = Column(Text, nullable=True)
+    metrica         = Column(String, nullable=False)   # cpa | ctr | conv | spend | freq
+    valor_antes     = Column(Float, nullable=True)     # valor actual al crear
+    valor_objetivo  = Column(Float, nullable=True)     # valor esperado
+    mejora_pct      = Column(Float, nullable=True)     # % mejora esperada
+    dias_medicion   = Column(Integer, default=7)
+    ad_id           = Column(String, nullable=True)    # entidad opcional a monitorear
+    estado          = Column(String, default="activa") # activa | confirmada | refutada | vencida
+    valor_final     = Column(Float, nullable=True)
+    delta_real_pct  = Column(Float, nullable=True)
+    creado_en       = Column(DateTime, default=datetime.utcnow)
+    medido_en       = Column(DateTime, nullable=True)
+    notas           = Column(Text, nullable=True)
 
 
 def get_db():

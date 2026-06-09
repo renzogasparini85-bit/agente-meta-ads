@@ -32,6 +32,7 @@ from routers.creative_analyze import router as creative_analyze_router
 from routers.pixel import router as pixel_router
 from routers.brief import router as brief_router
 from routers.strategy import router as strategy_router
+from routers.hypotheses import router as hypotheses_router
 
 app = FastAPI(title="Meta Ads AI — Backend", version="1.0.0")
 
@@ -64,6 +65,7 @@ app.include_router(creative_analyze_router)
 app.include_router(pixel_router)
 app.include_router(brief_router)
 app.include_router(strategy_router)
+app.include_router(hypotheses_router)
 
 
 scheduler = AsyncIOScheduler()
@@ -98,24 +100,30 @@ def _start_scheduler():
 async def _job_alertas_diarias():
     """
     Job diario: escanea todos los clientes con notificaciones activas
-    y envía WhatsApp si hay alertas.
+    y envía por Telegram y/o Email si hay alertas.
     """
     from routers.smart_alerts import _scan_client
-    from routers.alerts import router as _  # noqa: ensure loaded
     from database import Alert
-    from services.notificaciones import enviar_whatsapp, formatear_alerta_whatsapp
+    from services.notificaciones import (
+        enviar_telegram, enviar_email,
+        formatear_alerta_telegram, formatear_alerta_email_html,
+    )
 
     db = SessionLocal()
     try:
         clientes = db.query(Client).filter(
             Client.activo == True,
             Client.notif_diaria_activa == True,
-            Client.whatsapp_number != None,
         ).all()
 
         logger.info(f"[Cron alertas] {len(clientes)} cliente(s) con notificaciones activas")
 
         for client in clientes:
+            tiene_telegram = bool(client.telegram_chat_id)
+            tiene_email    = bool(getattr(client, "notif_email", None))
+            if not tiene_telegram and not tiene_email:
+                continue
+
             try:
                 n = await _scan_client(client, db)
                 db.commit()
@@ -130,13 +138,22 @@ async def _job_alertas_diarias():
                     continue
 
                 alertas_dict = [{"tipo": a.tipo, "mensaje": a.mensaje, "severidad": a.severidad} for a in alertas]
-                mensaje = formatear_alerta_whatsapp(client.nombre, alertas_dict, client.moneda or "ARS")
-                resultado = enviar_whatsapp(client.whatsapp_number, mensaje)
 
-                if resultado["ok"]:
-                    logger.info(f"[Cron] WhatsApp enviado a {client.nombre} ({client.whatsapp_number})")
-                else:
-                    logger.error(f"[Cron] Error enviando a {client.nombre}: {resultado.get('error')}")
+                if tiene_telegram:
+                    texto = formatear_alerta_telegram(client.nombre, alertas_dict, client.moneda or "ARS")
+                    r = await enviar_telegram(client.telegram_chat_id, texto)
+                    if r["ok"]:
+                        logger.info(f"[Cron] Telegram enviado a {client.nombre}")
+                    else:
+                        logger.error(f"[Cron] Telegram error {client.nombre}: {r.get('error')}")
+
+                if tiene_email:
+                    subject, html = formatear_alerta_email_html(client.nombre, alertas_dict)
+                    r = enviar_email(client.notif_email, subject, html)
+                    if r["ok"]:
+                        logger.info(f"[Cron] Email enviado a {client.nombre} ({client.notif_email})")
+                    else:
+                        logger.error(f"[Cron] Email error {client.nombre}: {r.get('error')}")
 
             except Exception as e:
                 logger.error(f"[Cron] Error procesando {client.nombre}: {e}")

@@ -147,11 +147,7 @@ async def get_ad_created_dates(account_id: str, token: str) -> dict:
     try:
         data = await meta_get(
             f"{account_id}/ads",
-            {
-                "fields": "id,created_time",
-                "effective_status": json.dumps(["ACTIVE", "PAUSED", "ARCHIVED"]),
-                "limit": "500",
-            },
+            {"fields": "id,created_time", "limit": "500"},
             token,
         )
         return {a["id"]: a.get("created_time", "") for a in data.get("data", [])}

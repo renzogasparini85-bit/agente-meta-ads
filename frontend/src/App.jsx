@@ -13,6 +13,7 @@ import Timeline from './pages/Timeline'
 import Benchmarks from './pages/Benchmarks'
 import Estrategia from './pages/Estrategia'
 import Guia from './pages/Guia'
+import Laboratorio from './pages/Laboratorio'
 import ClientePublico from './pages/ClientePublico'
 import { useState } from 'react'
 
@@ -28,6 +29,7 @@ const pages = {
   timeline:        Timeline,
   benchmarks:      Benchmarks,
   estrategia:      Estrategia,
+  laboratorio:     Laboratorio,
   guia:            Guia,
 }
 
