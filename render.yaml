@@ -2,9 +2,8 @@ services:
   - type: web
     name: meta-ads-backend
     runtime: python
-    rootDir: backend
-    buildCommand: echo "deps will be installed at start"
-    startCommand: cd backend && pip install -r requirements.txt -q && python3 -c "from database import init_db; init_db()" && uvicorn main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python3 -c "from database import init_db; init_db()" && uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -28,8 +27,6 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
-      - key: POETRY_VIRTUALENVS_CREATE
-        value: "false"
       - key: PYTHON_VERSION
         value: "3.11.9"
       - key: TELEGRAM_BOT_TOKEN
