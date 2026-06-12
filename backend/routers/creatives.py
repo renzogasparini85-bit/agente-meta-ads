@@ -80,6 +80,90 @@ def ftir_segmento(ftir: Optional[float]) -> str:
     return "mixto"
 
 
+def creative_health_score(
+    cpa, ctr, hook_rate, cpmr, frecuencia, badge,
+    *, cpa_escalar, cpa_pausar, cpmr_verde, cpmr_rojo, hook_verde, hook_rojo
+) -> dict:
+    """
+    Score 0-100 ponderado:
+      Hook Rate  25 pts — retención del primer segundo
+      CTR        20 pts — intención de click
+      CPMr       20 pts — eficiencia de alcance
+      CPA        25 pts — costo por resultado
+      Fatiga     10 pts — penalización por frecuencia alta
+    """
+    pts_hook = 0
+    if hook_rate is not None:
+        if hook_rate >= hook_verde:
+            pts_hook = 25
+        elif hook_rate >= hook_rojo:
+            pts_hook = round(((hook_rate - hook_rojo) / max(hook_verde - hook_rojo, 1)) * 25)
+        else:
+            pts_hook = 0
+    else:
+        pts_hook = 12  # sin video → neutro
+
+    pts_ctr = 0
+    if ctr >= 3.0:    pts_ctr = 20
+    elif ctr >= 2.0:  pts_ctr = 16
+    elif ctr >= 1.0:  pts_ctr = 10
+    elif ctr >= 0.5:  pts_ctr = 5
+    else:             pts_ctr = 0
+
+    pts_cpmr = 0
+    if cpmr is not None:
+        if cpmr <= cpmr_verde:
+            pts_cpmr = 20
+        elif cpmr <= cpmr_rojo:
+            span = max(cpmr_rojo - cpmr_verde, 1)
+            pts_cpmr = round((1 - (cpmr - cpmr_verde) / span) * 20)
+        else:
+            pts_cpmr = 0
+
+    pts_cpa = 0
+    if cpa is not None:
+        if cpa <= cpa_escalar:
+            pts_cpa = 25
+        elif cpa <= cpa_pausar:
+            span = max(cpa_pausar - cpa_escalar, 1)
+            pts_cpa = round((1 - (cpa - cpa_escalar) / span) * 25)
+        else:
+            pts_cpa = 0
+    else:
+        pts_cpa = 10  # sin conversiones → neutro bajo
+
+    pts_fatiga = 10
+    if frecuencia >= 3.0:   pts_fatiga = 0
+    elif frecuencia >= 2.5: pts_fatiga = 4
+    elif frecuencia >= 2.0: pts_fatiga = 7
+
+    total = pts_hook + pts_ctr + pts_cpmr + pts_cpa + pts_fatiga
+
+    # Estado legible basado en score + badge
+    if badge in ("escalar", "retener") or total >= 75:
+        estado = "escalable"
+    elif badge in ("pausar", "sin_conversiones") or total < 25:
+        estado = "pausar"
+    elif badge in ("fatiga",) or total < 45:
+        estado = "fatigado"
+    elif badge in ("optimizar",) or total < 60:
+        estado = "optimizar"
+    else:
+        estado = "mantener"
+
+    return {
+        "score": total,
+        "estado": estado,
+        "breakdown": {
+            "hook_rate": pts_hook,
+            "ctr": pts_ctr,
+            "cpmr": pts_cpmr,
+            "cpa": pts_cpa,
+            "fatiga": pts_fatiga,
+        }
+    }
+
+
 def classify(
     cpa, ctr, frecuencia, ftir, roas, gasto, dias_activo,
     *, cpa_escalar, cpa_replicar, cpa_pausar, gasto_minimo, roas_meta
@@ -195,6 +279,16 @@ async def ranking(
             roas_meta=client.roas_meta or 3.0,
         )
 
+        health = creative_health_score(
+            cpa, ctr, hook_rate, cpmr, freq, badge,
+            cpa_escalar=client.cpa_escalar,
+            cpa_pausar=client.cpa_pausar,
+            cpmr_verde=client.cpmr_verde,
+            cpmr_rojo=client.cpmr_rojo,
+            hook_verde=client.hook_verde,
+            hook_rojo=client.hook_rojo,
+        )
+
         nombre_ad = a.get("ad_name") or ""
         result.append({
             "id":             ad_id,
@@ -217,6 +311,9 @@ async def ranking(
             "segmento":       segmento,
             "dias_activo":    dias,
             "badge":          badge,
+            "health_score":   health["score"],
+            "health_estado":  health["estado"],
+            "health_breakdown": health["breakdown"],
         })
 
     def sort_key(x):

@@ -8,9 +8,23 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import SessionLocal, Client, AdAccount, Alert, get_db
 from auth import get_current_client
-from services.meta_api import get_ad_insights, extract_conversions, compute_cpa
-from datetime import datetime
+from services.meta_api import get_ad_insights, get_ad_created_dates, extract_conversions, compute_cpa
+from datetime import datetime, timezone
 import asyncio, os
+
+MIN_AD_AGE_DAYS = 5   # días mínimos antes de empezar a alertar sobre un anuncio
+
+
+def _ad_age_days(created_time_str: str) -> float:
+    """Días transcurridos desde la creación del anuncio. Devuelve 999 si no hay fecha."""
+    if not created_time_str:
+        return 999
+    try:
+        # Meta devuelve ISO 8601 con timezone, ej: "2026-05-20T10:30:00+0000"
+        dt = datetime.fromisoformat(created_time_str.replace("+0000", "+00:00"))
+        return (datetime.now(timezone.utc) - dt).total_seconds() / 86400
+    except Exception:
+        return 999
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -130,6 +144,15 @@ async def _scan_client(client: Client, db: Session) -> int:
     if not token or token == "DEMO":
         return 0
 
+    # Auto-resolver alertas con más de 7 días (datos ya no son relevantes)
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+    db.query(Alert).filter(
+        Alert.client_id == client.id,
+        Alert.estado == "activa",
+        Alert.creado_en < cutoff,
+    ).update({"estado": "resuelta"})
+
     new_alerts = 0
 
     for account in accounts:
@@ -140,6 +163,12 @@ async def _scan_client(client: Client, db: Session) -> int:
             ads = await get_ad_insights(ad_account_id, token, days=7)
         except Exception:
             continue
+
+        # Fechas de creación — si falla el rate limit, asumimos edad suficiente
+        try:
+            created_dates = await get_ad_created_dates(ad_account_id, token)
+        except Exception:
+            created_dates = {}
 
         for ad in ads:
             if campaign_filter:
@@ -155,9 +184,13 @@ async def _scan_client(client: Client, db: Session) -> int:
             conv    = extract_conversions(ad.get("actions", []))
             cpa     = compute_cpa(spend, conv)
 
+            # Si no hay fecha → asumimos edad suficiente (no bloqueamos la alerta)
+            edad_dias = _ad_age_days(created_dates.get(ad_id, ""))
+            en_aprendizaje = edad_dias < MIN_AD_AGE_DAYS
+
             alertas_ad = []
 
-            # Frecuencia crítica — usa umbrales configurables del cliente
+            # Frecuencia crítica — aplica incluso en aprendizaje
             if freq >= client.freq_rojo:
                 alertas_ad.append({
                     "tipo": "frecuencia",
@@ -171,29 +204,31 @@ async def _scan_client(client: Client, db: Session) -> int:
                     "mensaje": f"Frecuencia elevada ({freq:.1f}) en '{ad_name}'. Empezá a preparar variaciones.",
                 })
 
-            # CPA sobre umbral
-            if cpa and cpa >= client.cpa_pausar:
-                alertas_ad.append({
-                    "tipo": "cpa_alto",
-                    "severidad": "alta",
-                    "mensaje": f"🔴 CPA de ${cpa:.0f} en '{ad_name}' supera el umbral de pausa (${client.cpa_pausar:.0f}).",
-                })
+            # Las siguientes alertas requieren mínimo 5 días de datos
+            if not en_aprendizaje:
+                # CPA sobre umbral
+                if cpa and cpa >= client.cpa_pausar:
+                    alertas_ad.append({
+                        "tipo": "cpa_alto",
+                        "severidad": "alta",
+                        "mensaje": f"🔴 CPA de ${cpa:.0f} en '{ad_name}' supera el umbral de pausa (${client.cpa_pausar:.0f}). ({edad_dias:.0f} días activo)",
+                    })
 
-            # Gasto sin conversiones
-            if spend >= client.gasto_minimo_juzgar and conv == 0:
-                alertas_ad.append({
-                    "tipo": "sin_conversion",
-                    "severidad": "alta",
-                    "mensaje": f"⛔ '{ad_name}' gastó ${spend:.0f} en 7 días sin ninguna conversión.",
-                })
+                # Gasto sin conversiones
+                if spend >= client.gasto_minimo_juzgar and conv == 0:
+                    alertas_ad.append({
+                        "tipo": "sin_conversion",
+                        "severidad": "alta",
+                        "mensaje": f"⛔ '{ad_name}' gastó ${spend:.0f} en 7 días sin ninguna conversión. ({edad_dias:.0f} días activo)",
+                    })
 
-            # CTR muy bajo
-            if ctr < 0.5 and spend >= 1000:
-                alertas_ad.append({
-                    "tipo": "ctr_caida",
-                    "severidad": "media",
-                    "mensaje": f"CTR muy bajo ({ctr:.2f}%) en '{ad_name}'. Revisá el visual o el copy.",
-                })
+                # CTR muy bajo
+                if ctr < 0.5 and spend >= 1000:
+                    alertas_ad.append({
+                        "tipo": "ctr_caida",
+                        "severidad": "media",
+                        "mensaje": f"CTR muy bajo ({ctr:.2f}%) en '{ad_name}'. Revisá el visual o el copy.",
+                    })
 
             for alerta_data in alertas_ad:
                 # Evitar duplicados: misma tipo + ad_id + activa
@@ -237,6 +272,11 @@ async def scan_me(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Error Meta API: {str(e)}")
 
+    try:
+        created_dates = await get_ad_created_dates(ad_account_id, token)
+    except Exception:
+        created_dates = {}
+
     new_alerts = 0
     for ad in ads:
         if campaign_filter:
@@ -251,8 +291,12 @@ async def scan_me(
         conv    = extract_conversions(ad.get("actions", []))
         cpa     = compute_cpa(spend, conv)
 
+        edad_dias = _ad_age_days(created_dates.get(ad_id, ""))
+        en_aprendizaje = edad_dias < MIN_AD_AGE_DAYS
+
         candidatas = []
 
+        # Frecuencia aplica siempre
         if freq >= client.freq_rojo:
             candidatas.append(("frecuencia", "alta",
                 f"⚠️ Frecuencia crítica ({freq:.1f}) en '{ad_name}'. Renovar creativo urgente."))
@@ -260,17 +304,19 @@ async def scan_me(
             candidatas.append(("frecuencia", "media",
                 f"Frecuencia elevada ({freq:.1f}) en '{ad_name}'. Preparate para rotar el creativo."))
 
-        if cpa and cpa >= client.cpa_pausar:
-            candidatas.append(("cpa_alto", "alta",
-                f"🔴 CPA ${cpa:.0f} en '{ad_name}' supera el umbral de pausa (${client.cpa_pausar:.0f})."))
+        # CPA / conversiones / CTR requieren mínimo 5 días
+        if not en_aprendizaje:
+            if cpa and cpa >= client.cpa_pausar:
+                candidatas.append(("cpa_alto", "alta",
+                    f"🔴 CPA ${cpa:.0f} en '{ad_name}' supera el umbral de pausa (${client.cpa_pausar:.0f}). ({edad_dias:.0f} días activo)"))
 
-        if spend >= client.gasto_minimo_juzgar and conv == 0:
-            candidatas.append(("sin_conversion", "alta",
-                f"⛔ '{ad_name}' gastó ${spend:.0f} en 7 días sin conversiones."))
+            if spend >= client.gasto_minimo_juzgar and conv == 0:
+                candidatas.append(("sin_conversion", "alta",
+                    f"⛔ '{ad_name}' gastó ${spend:.0f} en 7 días sin conversiones. ({edad_dias:.0f} días activo)"))
 
-        if ctr < 0.5 and spend >= 1000:
-            candidatas.append(("ctr_caida", "media",
-                f"CTR muy bajo ({ctr:.2f}%) en '{ad_name}'. Revisá el visual o el copy."))
+            if ctr < 0.5 and spend >= 1000:
+                candidatas.append(("ctr_caida", "media",
+                    f"CTR muy bajo ({ctr:.2f}%) en '{ad_name}'. Revisá el visual o el copy."))
 
         for tipo, severidad, mensaje in candidatas:
             existe = db.query(Alert).filter(
@@ -289,3 +335,99 @@ async def scan_me(
 
     db.commit()
     return {"ok": True, "alertas_generadas": new_alerts, "ads_analizados": len(ads)}
+
+
+# ── Notificaciones externas ──────────────────────────────────────────
+
+@router.post("/notify-now")
+async def notify_now(
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    """Disparo manual: escanea y envía por Telegram y/o Email si hay alertas."""
+    from services.notificaciones import (
+        enviar_telegram, enviar_email,
+        formatear_alerta_telegram, formatear_alerta_email_html,
+    )
+
+    tiene_telegram = bool(client.telegram_chat_id)
+    tiene_email    = bool(getattr(client, "notif_email", None))
+
+    if not tiene_telegram and not tiene_email:
+        raise HTTPException(
+            status_code=400,
+            detail="No tenés Telegram ni email configurado. Agregalo en Configuración → Notificaciones.",
+        )
+
+    n = await _scan_client(client, db)
+    db.commit()
+
+    alertas = db.query(Alert).filter(
+        Alert.client_id == client.id,
+        Alert.estado == "activa",
+    ).order_by(Alert.creado_en.desc()).limit(10).all()
+
+    if not alertas:
+        return {"ok": True, "enviado": False, "motivo": "Sin alertas activas — no se envió mensaje", "alertas_nuevas": n}
+
+    alertas_dict = [{"tipo": a.tipo, "mensaje": a.mensaje, "severidad": a.severidad} for a in alertas]
+    resultados = {}
+
+    if tiene_telegram:
+        texto = formatear_alerta_telegram(client.nombre, alertas_dict, client.moneda or "ARS")
+        resultados["telegram"] = await enviar_telegram(client.telegram_chat_id, texto)
+
+    if tiene_email:
+        subject, html = formatear_alerta_email_html(client.nombre, alertas_dict)
+        resultados["email"] = enviar_email(client.notif_email, subject, html)
+
+    ok = any(v.get("ok") for v in resultados.values())
+    return {
+        "ok": ok,
+        "enviado": ok,
+        "alertas_nuevas": n,
+        "alertas_en_mensaje": len(alertas_dict),
+        "canales": resultados,
+    }
+
+
+@router.get("/notify-config")
+def get_notify_config(client: Client = Depends(get_current_client)):
+    """Devuelve la configuración actual de notificaciones del cliente."""
+    from services.notificaciones import _telegram_ok, _email_ok
+    return {
+        "telegram_chat_id":    client.telegram_chat_id,
+        "notif_email":         getattr(client, "notif_email", None),
+        "notif_diaria_activa": client.notif_diaria_activa,
+        "notif_hora":          client.notif_hora,
+        "telegram_configurado": _telegram_ok(),
+        "email_configurado":    _email_ok(),
+    }
+
+
+@router.put("/notify-config")
+def update_notify_config(
+    telegram_chat_id:    str  = None,
+    notif_email:         str  = None,
+    notif_diaria_activa: bool = None,
+    notif_hora:          int  = None,
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    """Guarda la configuración de notificaciones del cliente."""
+    if telegram_chat_id is not None:
+        client.telegram_chat_id = telegram_chat_id.strip() or None
+    if notif_email is not None:
+        client.notif_email = notif_email.strip() or None
+    if notif_diaria_activa is not None:
+        client.notif_diaria_activa = notif_diaria_activa
+    if notif_hora is not None:
+        client.notif_hora = max(0, min(23, notif_hora))
+    db.commit()
+    return {
+        "ok": True,
+        "telegram_chat_id":    client.telegram_chat_id,
+        "notif_email":         getattr(client, "notif_email", None),
+        "notif_diaria_activa": client.notif_diaria_activa,
+        "notif_hora":          client.notif_hora,
+    }

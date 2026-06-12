@@ -17,7 +17,7 @@ const FbIcon = ({ size = 12, className = '' }) => (
     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
   </svg>
 )
-import { organicAPI, recommendationsAPI, brandAPI } from '../services/api'
+import { organicAPI, recommendationsAPI, brandAPI, campaignsAPI } from '../services/api'
 import { useFetch } from '../hooks/useFetch'
 import { PageLoading, ErrorState, Spinner } from '../components/LoadingState'
 import DateRangePicker from '../components/DateRangePicker'
@@ -509,62 +509,101 @@ function PorPlataformaView({ porPlataforma }) {
 
 // ─── Comparativa orgánico vs pago ────────────────────────────────────────────
 function ComparativaOrgPago({ resumen, campaigns }) {
-  if (!resumen || resumen.total_posts == null) return <EmptyTab text="Sin datos para comparar" sub="Ampliá el rango de fechas para ver posts orgánicos en el período." />
-  if (!campaigns?.length) return (
-    <div className="space-y-4">
-      <EmptyTab
-        text="Conectá tus campañas pagas para ver la comparativa"
-        sub="Esta vista cruza alcance orgánico vs. pago. Los datos orgánicos están listos — activá una cuenta de Meta Ads para ver el contraste."
-      />
-      <div className="bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-white font-semibold text-sm mb-1">Alcance orgánico del período</h3>
-        <p className="text-slate-500 text-xs mb-4">Resumen sin comparativa paga</p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: 'Posts',       v: resumen.total_posts },
-            { label: 'Alcance',     v: (resumen.total_reach / 1000).toFixed(1) + 'k' },
-            { label: 'Likes',       v: resumen.total_likes?.toLocaleString('es-AR') },
-            { label: 'Eng. prom.',  v: resumen.avg_engagement + '%' },
-          ].map(({ label, v }) => (
-            <div key={label} className="bg-bg border border-border rounded-lg p-3 text-center">
-              <p className="text-white font-bold text-lg">{v}</p>
-              <p className="text-slate-500 text-xs mt-0.5">{label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+  const fmt = (n) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n ?? '—')
+  const fmtPesos = (n) => '$' + Number(n).toLocaleString('es-AR', { maximumFractionDigits: 0 })
 
-  const pagoAlcance = campaigns.reduce((s, c) => s + (c.impresiones || 0), 0)
-  const pagoConv    = campaigns.reduce((s, c) => s + (c.conversaciones || 0), 0)
-  const pagoGasto   = campaigns.reduce((s, c) => s + (c.gasto || 0), 0)
+  if (!resumen || resumen.total_posts == null) return <EmptyTab text="Sin datos orgánicos" sub="Ampliá el rango de fechas para ver posts en el período." />
 
-  const data = [
-    { name: 'Alcance', Orgánico: resumen.total_reach, Pago: pagoAlcance },
-    { name: 'Interacciones', Orgánico: resumen.total_likes + resumen.total_comments + resumen.total_shares, Pago: pagoConv },
+  const pagoAlcance     = campaigns.reduce((s, c) => s + (c.impresiones || 0), 0)
+  const pagoConv        = campaigns.reduce((s, c) => s + (c.conversaciones || 0), 0)
+  const pagoGasto       = campaigns.reduce((s, c) => s + (c.gasto || 0), 0)
+  const orgInteractions = (resumen.total_likes || 0) + (resumen.total_comments || 0) + (resumen.total_shares || 0)
+
+  const barData = [
+    { name: 'Alcance',        Orgánico: resumen.total_reach || 0, Pago: pagoAlcance },
+    { name: 'Interacciones',  Orgánico: orgInteractions,          Pago: pagoConv    },
   ]
 
+  const hasPago = campaigns.length > 0
+
   return (
-    <div className="bg-surface border border-border rounded-xl p-5">
-      <h3 className="text-white font-semibold text-sm mb-1">Orgánico vs. Pago</h3>
-      <p className="text-slate-500 text-xs mb-4">Comparativa de alcance e interacciones en el período</p>
-      <ResponsiveContainer width="100%" height={180}>
-        <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#2A2D3A" />
-          <XAxis dataKey="name" tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: '#64748B', fontSize: 10 }} axisLine={false} tickLine={false}
-            tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} width={40} />
-          <Tooltip contentStyle={{ background: '#1A1D2E', border: '1px solid #2A2D3A', borderRadius: 8, fontSize: 12 }}
-            labelStyle={{ color: '#94A3B8' }} />
-          <Bar dataKey="Orgánico" fill="#22C55E" radius={[4,4,0,0]} />
-          <Bar dataKey="Pago"     fill="#FF6B00" radius={[4,4,0,0]} />
-        </BarChart>
-      </ResponsiveContainer>
-      <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" /> Orgánico — sin inversión</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block" /> Pago — ${pagoGasto.toLocaleString('es-AR', { maximumFractionDigits: 0 })} invertidos</span>
+    <div className="space-y-4">
+      {/* KPI cards resumen */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Alcance orgánico',  v: fmt(resumen.total_reach || 0),    color: 'text-green-400',   border: 'border-green-400/20',   bg: 'bg-green-400/5'  },
+          { label: 'Alcance pago',      v: hasPago ? fmt(pagoAlcance) : '—', color: 'text-orange-400',  border: 'border-orange-400/20',  bg: 'bg-orange-400/5' },
+          { label: 'Inversión paga',    v: hasPago ? fmtPesos(pagoGasto) : '—', color: 'text-violet-glow', border: 'border-violet-DEFAULT/20', bg: 'bg-violet-DEFAULT/5' },
+          { label: 'Conv. pagas',       v: hasPago ? pagoConv : '—',         color: 'text-cyan-400',    border: 'border-cyan-400/20',    bg: 'bg-cyan-400/5'   },
+        ].map(({ label, v, color, border, bg }) => (
+          <div key={label} className={`rounded-xl border p-4 text-center ${bg} ${border}`}>
+            <p className={`text-xl font-bold ${color}`}>{v}</p>
+            <p className="text-slate-500 text-xs mt-1">{label}</p>
+          </div>
+        ))}
       </div>
+
+      {!hasPago && (
+        <div className="bg-surface border border-orange-400/20 rounded-xl px-5 py-4 text-center">
+          <p className="text-orange-400 text-sm font-medium">Sin campañas pagas en este período</p>
+          <p className="text-slate-500 text-xs mt-1">Cambiá el rango de fechas o verificá que haya campañas activas con gasto en el período seleccionado.</p>
+        </div>
+      )}
+
+      {/* Gráfico comparativo */}
+      {hasPago && (
+        <div className="bg-surface border border-border rounded-xl p-5">
+          <h3 className="text-white font-semibold text-sm mb-1">Orgánico vs. Pago</h3>
+          <p className="text-slate-500 text-xs mb-4">Comparativa de alcance e interacciones en el período seleccionado</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={barData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2A2D3A" />
+              <XAxis dataKey="name" tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#64748B', fontSize: 10 }} axisLine={false} tickLine={false}
+                tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} width={40} />
+              <Tooltip contentStyle={{ background: '#1A1D2E', border: '1px solid #2A2D3A', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#94A3B8' }} />
+              <Bar dataKey="Orgánico" fill="#22C55E" radius={[4,4,0,0]} />
+              <Bar dataKey="Pago"     fill="#FF6B00" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" /> Orgánico — sin inversión</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block" /> Pago — {fmtPesos(pagoGasto)} invertidos</span>
+          </div>
+        </div>
+      )}
+
+      {/* Desglose por campaña */}
+      {hasPago && (
+        <div className="bg-surface border border-border rounded-xl p-5">
+          <h3 className="text-white font-semibold text-sm mb-3">Campañas pagas del período</h3>
+          <div className="space-y-2">
+            {campaigns.map(c => (
+              <div key={c.id} className="flex items-center gap-3 py-2 border-b border-border/50 last:border-0">
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-xs font-medium truncate">{c.nombre}</p>
+                  <p className="text-slate-500 text-[10px] mt-0.5">{c.objetivo}</p>
+                </div>
+                <div className="flex items-center gap-4 shrink-0 text-xs">
+                  <div className="text-right">
+                    <p className="text-slate-400 text-[10px]">Alcance</p>
+                    <p className="text-white font-semibold">{fmt(c.impresiones || 0)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-slate-400 text-[10px]">Gasto</p>
+                    <p className="text-orange-400 font-semibold">{fmtPesos(c.gasto)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-slate-400 text-[10px]">Conv.</p>
+                    <p className="text-cyan-400 font-semibold">{c.conversaciones ?? '—'}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -641,6 +680,12 @@ export default function Organico() {
 
   // Perfil de marca para el generador de copies
   const { data: perfil } = useFetch(() => brandAPI.get().catch(() => null), [])
+
+  // Campañas pagas para comparativa orgánico vs pago
+  const { data: campaigns } = useFetch(
+    () => campaignsAPI.list(dateRange.days, dateRange.since, dateRange.until, account?.id).catch(() => []),
+    [dateRange, account?.id]
+  )
 
   if (loading) return <PageLoading />
   if (error) {
@@ -789,7 +834,7 @@ export default function Organico() {
       {vista === 'redes' && <PorPlataformaView porPlataforma={por_plataforma} />}
 
       {/* Vista: Comparativa */}
-      {vista === 'comparativa' && <ComparativaOrgPago resumen={resumen} campaigns={[]} />}
+      {vista === 'comparativa' && <ComparativaOrgPago resumen={resumen} campaigns={campaigns || []} />}
 
       {/* Vista: Por formato */}
       {vista === 'formatos' && posts.length > 0 && <FormatoChart porFormato={por_formato} />}

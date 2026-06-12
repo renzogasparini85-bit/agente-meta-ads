@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Target, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock, ChevronDown, ChevronUp, Sparkles, RotateCcw, Zap, Loader2, FileText, Download } from 'lucide-react'
+import { Target, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Clock, ChevronDown, ChevronUp, Sparkles, RotateCcw, Zap, Loader2, FileText, Download, LayoutGrid, List } from 'lucide-react'
 import { useFetch } from '../hooks/useFetch'
 import { useAccount } from '../context/AccountContext'
 import { PageLoading, ErrorState } from '../components/LoadingState'
@@ -431,6 +431,111 @@ function exportarInformePDF(informe, resumen) {
   setTimeout(() => URL.revokeObjectURL(url), 60000)
 }
 
+// ── Matriz de Ángulos ─────────────────────────────────────────────
+const ESTADO_ANGULO_CFG = {
+  escalar:     { label: 'Escalar',     color: 'text-green-400',  bg: 'bg-green-400/10  border-green-400/25',  dot: 'bg-green-400'  },
+  estable:     { label: 'Estable',     color: 'text-slate-300',  bg: 'bg-slate-700/30  border-border',         dot: 'bg-slate-400'  },
+  atencion:    { label: 'Atención',    color: 'text-yellow-400', bg: 'bg-yellow-400/10 border-yellow-400/25', dot: 'bg-yellow-400' },
+  critico:     { label: 'Rotar ya',    color: 'text-red-400',    bg: 'bg-red-400/10    border-red-400/25',    dot: 'bg-red-400'    },
+  oportunidad: { label: 'Probar',      color: 'text-violet-400', bg: 'bg-violet-400/8  border-violet-400/20', dot: 'bg-violet-400' },
+}
+
+function MatrizAngulos({ biblioteca = [], umbrales = {} }) {
+  const total_spend = biblioteca.reduce((s, a) => s + a.total_spend, 0)
+
+  return (
+    <div>
+      <h2 className="text-white font-semibold text-base mb-3 flex items-center gap-2">
+        <LayoutGrid size={16} className="text-violet-400" />
+        Matriz de ángulos
+        <span className="text-slate-500 text-xs font-normal ml-1">— cobertura creativa completa</span>
+      </h2>
+      <div className="overflow-x-auto rounded-xl border border-border">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border">
+              <th className="text-left px-4 py-3 text-slate-500 font-medium">Ángulo</th>
+              <th className="text-center px-3 py-3 text-slate-500 font-medium">Ads</th>
+              <th className="text-right px-3 py-3 text-slate-500 font-medium hidden sm:table-cell">Spend</th>
+              <th className="text-right px-3 py-3 text-slate-500 font-medium hidden md:table-cell">% Spend</th>
+              <th className="text-right px-3 py-3 text-slate-500 font-medium">CPA prom.</th>
+              <th className="text-right px-3 py-3 text-slate-500 font-medium hidden lg:table-cell">Hook Rate</th>
+              <th className="text-right px-3 py-3 text-slate-500 font-medium hidden lg:table-cell">CTR</th>
+              <th className="text-center px-3 py-3 text-slate-500 font-medium">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {biblioteca.map((a) => {
+              const cfg = ESTADO_ANGULO_CFG[a.estado_angulo] || ESTADO_ANGULO_CFG.estable
+              const spendPct = total_spend > 0 ? (a.total_spend / total_spend * 100) : 0
+              const isOpp = a.estado_angulo === 'oportunidad'
+              return (
+                <tr key={a.angulo} className={`border-b border-border/50 transition-colors ${isOpp ? 'opacity-60' : 'hover:bg-white/2'}`}>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+                      <span className={`font-medium ${isOpp ? 'text-slate-500 italic' : 'text-slate-200'}`}>{a.angulo}</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    {isOpp
+                      ? <span className="text-violet-400 font-semibold">0</span>
+                      : <span className="text-slate-300 font-semibold">{a.n_ads}</span>}
+                  </td>
+                  <td className="px-3 py-3 text-right hidden sm:table-cell">
+                    {a.total_spend > 0
+                      ? <span className="text-slate-300">${Number(a.total_spend).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</span>
+                      : <span className="text-slate-600">—</span>}
+                  </td>
+                  <td className="px-3 py-3 text-right hidden md:table-cell">
+                    {a.total_spend > 0 ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-16 h-1 bg-border rounded-full overflow-hidden">
+                          <div className="h-full bg-violet-400/60 rounded-full" style={{ width: `${Math.min(spendPct, 100)}%` }} />
+                        </div>
+                        <span className="text-slate-400 w-8">{spendPct.toFixed(0)}%</span>
+                      </div>
+                    ) : <span className="text-slate-600">—</span>}
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    {a.cpa_promedio != null
+                      ? <span className={a.cpa_promedio <= (umbrales.cpa_escalar ?? 500) ? 'text-green-400 font-semibold' : a.cpa_promedio >= (umbrales.cpa_pausar ?? 900) ? 'text-red-400' : 'text-slate-300'}>
+                          ${Number(a.cpa_promedio).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                        </span>
+                      : <span className="text-slate-600">—</span>}
+                  </td>
+                  <td className="px-3 py-3 text-right hidden lg:table-cell">
+                    {a.hook_rate_promedio != null
+                      ? <span className={a.hook_rate_promedio >= (umbrales.hook_verde ?? 25) ? 'text-green-400' : a.hook_rate_promedio < (umbrales.hook_rojo ?? 15) ? 'text-red-400' : 'text-yellow-400'}>
+                          {a.hook_rate_promedio}%
+                        </span>
+                      : <span className="text-slate-600">—</span>}
+                  </td>
+                  <td className="px-3 py-3 text-right hidden lg:table-cell">
+                    {a.ctr_promedio != null
+                      ? <span className={a.ctr_promedio >= 2 ? 'text-green-400' : a.ctr_promedio < 0.5 ? 'text-red-400' : 'text-slate-300'}>
+                          {a.ctr_promedio}%
+                        </span>
+                      : <span className="text-slate-600">—</span>}
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cfg.bg} ${cfg.color}`}>
+                      {cfg.label}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-slate-600 text-[10px] mt-2 px-1">
+        Los ángulos en gris italizado (Estado: Probar) no tienen anuncios activos — son oportunidades sin explorar.
+      </p>
+    </div>
+  )
+}
+
 // ── Componente principal ──────────────────────────────────────────
 export default function Estrategia() {
   const { selected: account } = useAccount()
@@ -543,6 +648,9 @@ export default function Estrategia() {
           )
         })}
       </div>
+
+      {/* Matriz de ángulos */}
+      <MatrizAngulos biblioteca={biblioteca} umbrales={umbrales} />
 
       {/* Alertas de rotación */}
       {rotar.length > 0 && (

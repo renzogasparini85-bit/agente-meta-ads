@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { X, Settings, Save, Check, TrendingUp, MessageCircle, Key, RefreshCw, ExternalLink, BarChart2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, Settings, Save, Check, TrendingUp, MessageCircle, Key, RefreshCw, ExternalLink, BarChart2, Zap, CheckCircle, Bell, Send, Mail } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useAccount } from '../context/AccountContext'
 import api from '../services/api'
 
 const MONEDAS = [
@@ -16,6 +17,7 @@ const MONEDAS = [
 
 export default function Configuracion({ onClose }) {
   const { client, updateClient } = useAuth()
+  const { selected: account } = useAccount()
   const [tab, setTab] = useState('cpa')
   const [form, setForm] = useState({
     moneda:            client?.moneda            || 'ARS',
@@ -42,12 +44,118 @@ export default function Configuracion({ onClose }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState(null)
+  const [calibrating, setCalibrating] = useState(false)
+  const [calibPreview, setCalibPreview] = useState(null) // { cpmr_verde, cpmr_rojo, motivo, fuente, n_ads }
+
+  // Fetch fresh settings from server on mount to get accurate GEM thresholds
+  useEffect(() => {
+    api.get('/clients/me/settings').then(res => {
+      const d = res.data
+      setForm(f => ({
+        ...f,
+        moneda:              d.moneda              ?? f.moneda,
+        cpa_escalar:         d.cpa_escalar         ?? f.cpa_escalar,
+        cpa_replicar:        d.cpa_replicar        ?? f.cpa_replicar,
+        cpa_pausar:          d.cpa_pausar          ?? f.cpa_pausar,
+        ticket_promedio:     d.ticket_promedio      != null ? d.ticket_promedio : f.ticket_promedio,
+        tasa_cierre:         d.tasa_cierre          != null ? d.tasa_cierre     : f.tasa_cierre,
+        roas_meta:           d.roas_meta           ?? f.roas_meta,
+        cpmr_verde:          d.cpmr_verde          ?? f.cpmr_verde,
+        cpmr_rojo:           d.cpmr_rojo           ?? f.cpmr_rojo,
+        hook_verde:          d.hook_verde          ?? f.hook_verde,
+        hook_rojo:           d.hook_rojo           ?? f.hook_rojo,
+        freq_amarillo:       d.freq_amarillo       ?? f.freq_amarillo,
+        freq_rojo:           d.freq_rojo           ?? f.freq_rojo,
+        ctr_bueno:           d.ctr_bueno           ?? f.ctr_bueno,
+        ctr_malo:            d.ctr_malo            ?? f.ctr_malo,
+        conv_semana_rojo:    d.conv_semana_rojo    ?? f.conv_semana_rojo,
+        conv_semana_verde:   d.conv_semana_verde   ?? f.conv_semana_verde,
+        diversidad_amarillo: d.diversidad_amarillo ?? f.diversidad_amarillo,
+        diversidad_rojo:     d.diversidad_rojo     ?? f.diversidad_rojo,
+      }))
+    }).catch(err => console.error('[Configuracion] settings fetch failed:', err?.response?.status, err?.message))
+
+    api.get('/alerts/notify-config').then(res => {
+      setNotif(res.data)
+    }).catch(() => {})
+  }, [])
+  const [notif, setNotif] = useState({ telegram_chat_id: '', notif_email: '', notif_diaria_activa: false, notif_hora: 9, telegram_configurado: false, email_configurado: false })
+  const [savingNotif, setSavingNotif] = useState(false)
+  const [savedNotif, setSavedNotif] = useState(false)
+  const [sendingTest, setSendingTest] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+
   const [tokenCorto, setTokenCorto] = useState('')
   const [savingToken, setSavingToken] = useState(false)
   const [savedToken, setSavedToken] = useState(null) // { expires_days }
   const [errorToken, setErrorToken] = useState(null)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSaveNotif = async () => {
+    setSavingNotif(true)
+    setSavedNotif(false)
+    try {
+      const params = new URLSearchParams()
+      params.set('telegram_chat_id', notif.telegram_chat_id || '')
+      params.set('notif_email', notif.notif_email || '')
+      params.set('notif_diaria_activa', notif.notif_diaria_activa)
+      params.set('notif_hora', notif.notif_hora)
+      const res = await api.put(`/alerts/notify-config?${params}`)
+      setNotif(prev => ({ ...prev, ...res.data }))
+      setSavedNotif(true)
+      setTimeout(() => setSavedNotif(false), 2500)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setSavingNotif(false)
+    }
+  }
+
+  const handleSendTest = async () => {
+    setSendingTest(true)
+    setTestResult(null)
+    try {
+      const res = await api.post('/alerts/notify-now')
+      if (res.data.ok) {
+        const canales = res.data.canales || {}
+        const ok = Object.entries(canales).filter(([, v]) => v?.ok).map(([k]) => k).join(' + ')
+        setTestResult({ ok: true, msg: `✓ Enviado por ${ok || 'canal'} (${res.data.alertas_en_mensaje} alertas)` })
+      } else {
+        setTestResult({ ok: false, msg: res.data.motivo || 'No se envió' })
+      }
+    } catch (e) {
+      setTestResult({ ok: false, msg: e?.response?.data?.detail || 'Error al enviar' })
+    } finally {
+      setSendingTest(false)
+    }
+  }
+
+  const handleCalibrate = async (apply = false) => {
+    setCalibrating(true)
+    setCalibPreview(null)
+    try {
+      const params = new URLSearchParams({ apply: apply ? 'true' : 'false' })
+      if (account?.id) params.set('account_id', account.id)
+      const res = await api.post(`/clients/me/calibrate?${params}`)
+      const d = res.data
+      setCalibPreview(d)
+      if (apply && d.metricas) {
+        const updates = {}
+        const m = d.metricas
+        if (m.cpmr)  { updates.cpmr_verde = m.cpmr.cpmr_verde;   updates.cpmr_rojo  = m.cpmr.cpmr_rojo }
+        if (m.hook)  { updates.hook_verde  = m.hook.hook_verde;   updates.hook_rojo  = m.hook.hook_rojo }
+        if (m.ctr)   { updates.ctr_bueno   = m.ctr.ctr_bueno;    updates.ctr_malo   = m.ctr.ctr_malo }
+        if (m.freq)  { updates.freq_amarillo = m.freq.freq_amarillo; updates.freq_rojo = m.freq.freq_rojo }
+        setForm(f => ({ ...f, ...updates }))
+        updateClient(updates)
+      }
+    } catch (e) {
+      setCalibPreview({ error: e?.response?.data?.detail || 'Error al calibrar' })
+    } finally {
+      setCalibrating(false)
+    }
+  }
 
   // ROAS estimado en base a los inputs actuales
   const roasPreview = (() => {
@@ -156,10 +264,11 @@ export default function Configuracion({ onClose }) {
         {/* Tabs */}
         <div className="flex border-b border-border px-2">
           {[
-            { id: 'cpa',     label: 'CPA',      icon: TrendingUp },
-            { id: 'metricas',label: 'Métricas', icon: BarChart2 },
-            { id: 'roas',    label: 'ROAS',     icon: MessageCircle },
-            { id: 'token',   label: 'Token',    icon: Key },
+            { id: 'cpa',          label: 'CPA',           icon: TrendingUp },
+            { id: 'metricas',     label: 'Métricas',      icon: BarChart2 },
+            { id: 'roas',         label: 'ROAS',          icon: MessageCircle },
+            { id: 'notif',        label: 'Notificaciones',icon: Bell },
+            { id: 'token',        label: 'Token',         icon: Key },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -282,21 +391,96 @@ export default function Configuracion({ onClose }) {
 
           {tab === 'metricas' && (
             <>
-              <div className="bg-violet-DEFAULT/5 border border-violet-DEFAULT/15 rounded-xl px-4 py-3">
-                <p className="text-white text-xs font-semibold mb-1">Umbrales GEM — Estándar Ruta Pro 2026</p>
+              <div className="bg-violet-DEFAULT/5 border border-violet-DEFAULT/15 rounded-xl px-4 py-3 space-y-2">
+                <p className="text-white text-xs font-semibold">Umbrales GEM — Estándar Ruta Pro 2026</p>
                 <p className="text-slate-400 text-xs leading-relaxed">
-                  Los valores por defecto siguen el estándar profesional 2026. Podés ajustarlos según tu industria y objetivos — los cambios impactan los semáforos en Estrategia, Creativos y el Informe GEM.
+                  Estos valores definen los semáforos verde/amarillo/rojo que ves en Estrategia, Creativos, Alertas e Informe GEM.
+                  Los defaults ya vienen calibrados al estándar profesional 2026 — solo ajustalos si tu industria o mercado tiene referencias distintas.
                 </p>
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  <div className="bg-green-400/8 border border-green-400/20 rounded-lg px-2 py-1.5 text-center">
+                    <p className="text-green-400 text-[10px] font-semibold">Verde</p>
+                    <p className="text-green-300 text-[10px]">Dentro del objetivo — mantener o escalar</p>
+                  </div>
+                  <div className="bg-yellow-400/8 border border-yellow-400/20 rounded-lg px-2 py-1.5 text-center">
+                    <p className="text-yellow-400 text-[10px] font-semibold">Amarillo</p>
+                    <p className="text-yellow-300 text-[10px]">Zona de atención — monitorear de cerca</p>
+                  </div>
+                  <div className="bg-red-400/8 border border-red-400/20 rounded-lg px-2 py-1.5 text-center">
+                    <p className="text-red-400 text-[10px] font-semibold">Rojo</p>
+                    <p className="text-red-300 text-[10px]">Acción inmediata requerida</p>
+                  </div>
+                </div>
               </div>
 
               {[
                 {
                   titulo: 'CPMr — Costo por 1000 alcance único',
-                  nota: 'En la moneda de tu cuenta Meta. Estándar 2026: < $20 verde · > $25 rojo',
+                  nota: `En ${form.moneda || 'tu moneda local'}. Referencia 2026 Argentina: verde < $3.000 · rojo > $7.000. Podés calibrar automáticamente desde tu historial.`,
                   campos: [
-                    { key: 'cpmr_verde', label: 'Verde (eficiente) — menor a', color: 'green', hint: form.moneda || 'USD' },
-                    { key: 'cpmr_rojo',  label: 'Rojo (rotar urgente) — mayor a', color: 'red', hint: form.moneda || 'USD' },
-                  ]
+                    { key: 'cpmr_verde', label: 'Verde (eficiente) — menor a', color: 'green', hint: form.moneda || 'moneda' },
+                    { key: 'cpmr_rojo',  label: 'Rojo (rotar urgente) — mayor a', color: 'red', hint: form.moneda || 'moneda' },
+                  ],
+                  extraSlot: (
+                    <div className="mt-3 space-y-2">
+                      {/* Botón calibrar */}
+                      <button
+                        onClick={() => handleCalibrate(false)}
+                        disabled={calibrating}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-DEFAULT/10 border border-violet-DEFAULT/30 text-violet-glow text-xs font-medium hover:bg-violet-DEFAULT/20 cursor-pointer transition-colors disabled:opacity-50"
+                      >
+                        {calibrating ? <RefreshCw size={12} className="animate-spin" /> : <Zap size={12} />}
+                        {calibrating ? 'Analizando historial…' : 'Calibrar con mi historial (90 días)'}
+                      </button>
+
+                      {/* Preview resultado */}
+                      {calibPreview && !calibPreview.error && (
+                        <div className={`rounded-lg px-3 py-2.5 border text-xs space-y-3 ${calibPreview.fuente === 'defaults' ? 'bg-yellow-400/8 border-yellow-400/20' : 'bg-green-400/8 border-green-400/20'}`}>
+                          <p className={calibPreview.fuente === 'defaults' ? 'text-yellow-300' : 'text-green-400'}>
+                            {calibPreview.fuente === 'defaults' ? '⚠ ' : '✓ '}{calibPreview.motivo}
+                          </p>
+                          {calibPreview.metricas && (
+                            <div className="space-y-1.5">
+                              {[
+                                { key: 'cpmr', label: 'CPMr', prefix: '$', verde: 'cpmr_verde', rojo: 'cpmr_rojo' },
+                                { key: 'hook', label: 'Hook Rate', suffix: '%', verde: 'hook_verde', rojo: 'hook_rojo' },
+                                { key: 'ctr',  label: 'CTR', suffix: '%', verde: 'ctr_bueno', rojo: 'ctr_malo' },
+                                { key: 'freq', label: 'Frecuencia', verde: 'freq_amarillo', rojo: 'freq_rojo' },
+                              ].map(({ key, label, prefix='', suffix='', verde, rojo }) => {
+                                const m = calibPreview.metricas?.[key]
+                                if (!m) return null
+                                const isDefault = m.fuente === 'defaults'
+                                return (
+                                  <div key={key} className="flex items-center gap-2">
+                                    <span className={`w-16 shrink-0 ${isDefault ? 'text-slate-500' : 'text-slate-300'}`}>{label}</span>
+                                    {isDefault
+                                      ? <span className="text-slate-500 text-[10px]">sin historial suficiente</span>
+                                      : <span className="text-slate-300">🟢 {prefix}{Number(m[verde]).toLocaleString('es-AR')}{suffix} · 🔴 {prefix}{Number(m[rojo]).toLocaleString('es-AR')}{suffix}</span>
+                                    }
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                          {calibPreview.fuente !== 'defaults' && !calibPreview.aplicado && (
+                            <button
+                              onClick={() => handleCalibrate(true)}
+                              disabled={calibrating}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-400/15 border border-green-400/30 text-green-400 text-xs font-semibold cursor-pointer hover:bg-green-400/25 transition-colors disabled:opacity-50"
+                            >
+                              <CheckCircle size={12} /> Aplicar todos los umbrales
+                            </button>
+                          )}
+                          {calibPreview.aplicado && (
+                            <p className="text-green-400 font-semibold flex items-center gap-1"><Check size={12} /> Aplicado</p>
+                          )}
+                        </div>
+                      )}
+                      {calibPreview?.error && (
+                        <p className="text-red-400 text-xs">{calibPreview.error}</p>
+                      )}
+                    </div>
+                  )
                 },
                 {
                   titulo: 'Hook Rate — % que ve el 25% del video',
@@ -360,9 +544,156 @@ export default function Configuracion({ onClose }) {
                       </div>
                     ))}
                   </div>
+                  {grupo.extraSlot}
                 </div>
               ))}
             </>
+          )}
+
+          {tab === 'notif' && (
+            <div className="space-y-5">
+
+              {/* ── Telegram ── */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Send size={13} className="text-violet-glow" />
+                  <p className="text-white text-xs font-semibold">Telegram</p>
+                  <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full border ${notif.telegram_configurado ? 'bg-green-400/10 border-green-400/20 text-green-400' : 'bg-yellow-400/10 border-yellow-400/20 text-yellow-400'}`}>
+                    {notif.telegram_configurado ? 'Bot activo' : 'Sin configurar'}
+                  </span>
+                </div>
+
+                {!notif.telegram_configurado && (
+                  <div className="bg-bg border border-border rounded-xl px-4 py-3 space-y-1.5 text-xs text-slate-400">
+                    <p className="text-white font-semibold text-xs mb-1.5">Setup (5 min, gratis)</p>
+                    <p>1. Abrí <span className="text-violet-300">@BotFather</span> en Telegram → <code className="bg-black/30 px-1 rounded">/newbot</code></p>
+                    <p>2. Copiá el token y agregalo al <code className="bg-black/30 px-1 rounded">.env</code>:</p>
+                    <div className="bg-black/40 rounded-lg px-3 py-2 font-mono text-[10px] text-green-300">
+                      TELEGRAM_BOT_TOKEN=1234567890:AAF...
+                    </div>
+                    <p>3. Mandá cualquier mensaje a tu bot y buscá tu Chat ID en:</p>
+                    <div className="bg-black/40 rounded-lg px-3 py-2 font-mono text-[10px] text-green-300 break-all">
+                      api.telegram.org/bot{'<TOKEN>'}/getUpdates
+                    </div>
+                    <p className="text-slate-500 text-[10px]">Reiniciar el backend después de agregar el token.</p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-slate-400 text-xs font-medium block mb-1.5">Tu Chat ID de Telegram</label>
+                  <input
+                    type="text"
+                    placeholder="123456789"
+                    value={notif.telegram_chat_id || ''}
+                    onChange={e => setNotif(n => ({ ...n, telegram_chat_id: e.target.value }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-DEFAULT/60 transition-colors"
+                  />
+                  <p className="text-slate-600 text-[10px] mt-1">Solo números, ej: 123456789</p>
+                </div>
+              </div>
+
+              {/* Divisor */}
+              <div className="border-t border-border" />
+
+              {/* ── Email ── */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Mail size={13} className="text-violet-glow" />
+                  <p className="text-white text-xs font-semibold">Email</p>
+                  <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full border ${notif.email_configurado ? 'bg-green-400/10 border-green-400/20 text-green-400' : 'bg-yellow-400/10 border-yellow-400/20 text-yellow-400'}`}>
+                    {notif.email_configurado ? 'SMTP activo' : 'Sin configurar'}
+                  </span>
+                </div>
+
+                {!notif.email_configurado && (
+                  <div className="bg-bg border border-border rounded-xl px-4 py-3 space-y-1.5 text-xs text-slate-400">
+                    <p className="text-white font-semibold text-xs mb-1.5">Setup SMTP (Gmail recomendado)</p>
+                    <p>1. Google Account → Seguridad → Contraseñas de aplicación</p>
+                    <p>2. Crear contraseña de app para "Correo"</p>
+                    <p>3. Agregar al <code className="bg-black/30 px-1 rounded">.env</code>:</p>
+                    <div className="bg-black/40 rounded-lg px-3 py-2 font-mono text-[10px] text-green-300 space-y-0.5">
+                      <p>SMTP_HOST=smtp.gmail.com</p>
+                      <p>SMTP_PORT=587</p>
+                      <p>SMTP_USER=tu@gmail.com</p>
+                      <p>SMTP_PASS=xxxx xxxx xxxx xxxx</p>
+                    </div>
+                    <p className="text-slate-500 text-[10px]">Reiniciar el backend después de agregar las variables.</p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-slate-400 text-xs font-medium block mb-1.5">Email para recibir alertas</label>
+                  <input
+                    type="email"
+                    placeholder="vos@ejemplo.com"
+                    value={notif.notif_email || ''}
+                    onChange={e => setNotif(n => ({ ...n, notif_email: e.target.value }))}
+                    className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-DEFAULT/60 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Divisor */}
+              <div className="border-t border-border" />
+
+              {/* ── Frecuencia ── */}
+              <div className="flex items-center justify-between gap-4 bg-bg border border-border rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-white text-xs font-semibold">Resumen diario automático</p>
+                  <p className="text-slate-500 text-[10px] mt-0.5">El sistema escanea y notifica si hay alertas críticas</p>
+                </div>
+                <button
+                  onClick={() => setNotif(n => ({ ...n, notif_diaria_activa: !n.notif_diaria_activa }))}
+                  className={`w-10 h-6 rounded-full transition-colors cursor-pointer shrink-0 ${notif.notif_diaria_activa ? 'bg-violet-DEFAULT' : 'bg-border'}`}
+                >
+                  <div className={`w-4 h-4 bg-white rounded-full mx-1 transition-transform ${notif.notif_diaria_activa ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              {notif.notif_diaria_activa && (
+                <div>
+                  <label className="text-slate-400 text-xs font-medium block mb-1.5">Hora de envío (hora local Argentina)</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {[7, 8, 9, 10, 11, 12].map(h => (
+                      <button
+                        key={h}
+                        onClick={() => setNotif(n => ({ ...n, notif_hora: h }))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${notif.notif_hora === h ? 'bg-violet-DEFAULT/20 border-violet-DEFAULT/50 text-violet-glow' : 'border-border text-slate-400 hover:text-white'}`}
+                      >
+                        {h}:00
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-slate-600 text-[10px] mt-1.5">Solo se envía si hay alertas activas ese día</p>
+                </div>
+              )}
+
+              {/* Botones */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleSaveNotif}
+                  disabled={savingNotif}
+                  className="flex-1 flex items-center justify-center gap-2 bg-violet-DEFAULT text-white font-semibold py-2.5 rounded-lg hover:opacity-90 disabled:opacity-60 cursor-pointer transition-opacity text-sm"
+                >
+                  {savedNotif ? <><Check size={14} /> Guardado</> : <><Save size={14} /> Guardar</>}
+                </button>
+                <button
+                  onClick={handleSendTest}
+                  disabled={sendingTest || (!notif.telegram_chat_id && !notif.notif_email)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-40 cursor-pointer transition-colors text-sm"
+                  title={!notif.telegram_chat_id && !notif.notif_email ? 'Configurá Telegram o Email primero' : 'Enviar resumen ahora'}
+                >
+                  {sendingTest ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                  Probar
+                </button>
+              </div>
+
+              {testResult && (
+                <p className={`text-xs px-3 py-2 rounded-lg border ${testResult.ok ? 'bg-green-400/10 border-green-400/20 text-green-400' : 'bg-red-400/10 border-red-400/20 text-red-400'}`}>
+                  {testResult.msg}
+                </p>
+              )}
+            </div>
           )}
 
           {tab === 'token' && (
@@ -420,7 +751,7 @@ export default function Configuracion({ onClose }) {
         </div>
 
         {/* Footer fijo — Guardar */}
-        {tab !== 'token' && (
+        {tab !== 'token' && tab !== 'notif' && (
           <div className="px-6 py-4 border-t border-border shrink-0">
             {error && <p className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2 mb-3">{error}</p>}
             <button

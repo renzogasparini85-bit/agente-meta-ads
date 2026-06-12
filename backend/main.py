@@ -1,9 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-import os
+import os, asyncio, logging
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 from database import init_db, SessionLocal, Client
 from auth import hash_password
@@ -28,6 +32,7 @@ from routers.creative_analyze import router as creative_analyze_router
 from routers.pixel import router as pixel_router
 from routers.brief import router as brief_router
 from routers.strategy import router as strategy_router
+from routers.hypotheses import router as hypotheses_router
 
 app = FastAPI(title="Meta Ads AI — Backend", version="1.0.0")
 
@@ -60,12 +65,100 @@ app.include_router(creative_analyze_router)
 app.include_router(pixel_router)
 app.include_router(brief_router)
 app.include_router(strategy_router)
+app.include_router(hypotheses_router)
+
+
+scheduler = AsyncIOScheduler()
 
 
 @app.on_event("startup")
-def startup():
+async def startup():
     init_db()
     _seed_default_client()
+    _start_scheduler()
+
+
+@app.on_event("shutdown")
+def shutdown():
+    if scheduler.running:
+        scheduler.shutdown()
+
+
+def _start_scheduler():
+    """Inicia el cron de alertas diarias. Hora configurable vía NOTIF_HORA_UTC (default 12 UTC)."""
+    hora_utc = int(os.getenv("NOTIF_HORA_UTC", "12"))
+    scheduler.add_job(
+        _job_alertas_diarias,
+        CronTrigger(hour=hora_utc, minute=0),
+        id="alertas_diarias",
+        replace_existing=True,
+    )
+    scheduler.start()
+    logger.info(f"Scheduler iniciado — alertas diarias a las {hora_utc}:00 UTC")
+
+
+async def _job_alertas_diarias():
+    """
+    Job diario: escanea todos los clientes con notificaciones activas
+    y envía por Telegram y/o Email si hay alertas.
+    """
+    from routers.smart_alerts import _scan_client
+    from database import Alert
+    from services.notificaciones import (
+        enviar_telegram, enviar_email,
+        formatear_alerta_telegram, formatear_alerta_email_html,
+    )
+
+    db = SessionLocal()
+    try:
+        clientes = db.query(Client).filter(
+            Client.activo == True,
+            Client.notif_diaria_activa == True,
+        ).all()
+
+        logger.info(f"[Cron alertas] {len(clientes)} cliente(s) con notificaciones activas")
+
+        for client in clientes:
+            tiene_telegram = bool(client.telegram_chat_id)
+            tiene_email    = bool(getattr(client, "notif_email", None))
+            if not tiene_telegram and not tiene_email:
+                continue
+
+            try:
+                n = await _scan_client(client, db)
+                db.commit()
+
+                alertas = db.query(Alert).filter(
+                    Alert.client_id == client.id,
+                    Alert.estado == "activa",
+                ).order_by(Alert.creado_en.desc()).limit(10).all()
+
+                if not alertas:
+                    logger.info(f"[Cron] {client.nombre} — sin alertas, no se envía")
+                    continue
+
+                alertas_dict = [{"tipo": a.tipo, "mensaje": a.mensaje, "severidad": a.severidad} for a in alertas]
+
+                if tiene_telegram:
+                    texto = formatear_alerta_telegram(client.nombre, alertas_dict, client.moneda or "ARS")
+                    r = await enviar_telegram(client.telegram_chat_id, texto)
+                    if r["ok"]:
+                        logger.info(f"[Cron] Telegram enviado a {client.nombre}")
+                    else:
+                        logger.error(f"[Cron] Telegram error {client.nombre}: {r.get('error')}")
+
+                if tiene_email:
+                    subject, html = formatear_alerta_email_html(client.nombre, alertas_dict)
+                    r = enviar_email(client.notif_email, subject, html)
+                    if r["ok"]:
+                        logger.info(f"[Cron] Email enviado a {client.nombre} ({client.notif_email})")
+                    else:
+                        logger.error(f"[Cron] Email error {client.nombre}: {r.get('error')}")
+
+            except Exception as e:
+                logger.error(f"[Cron] Error procesando {client.nombre}: {e}")
+    finally:
+        db.close()
 
 
 def _seed_default_client():

@@ -15,8 +15,24 @@ import anthropic
 
 router = APIRouter(prefix="/strategy", tags=["strategy"])
 
-# Caché en memoria: ad_id -> angulo detectado por IA
-_angulo_cache: dict[str, str] = {}
+# Caché persistente: ad_id -> angulo detectado por IA (sobrevive reinicios)
+_CACHE_FILE = os.path.join(os.path.dirname(__file__), "..", "angulos_cache.json")
+
+def _load_cache() -> dict[str, str]:
+    try:
+        with open(_CACHE_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_cache(cache: dict[str, str]):
+    try:
+        with open(_CACHE_FILE, "w") as f:
+            json.dump(cache, f)
+    except Exception:
+        pass
+
+_angulo_cache: dict[str, str] = _load_cache()
 
 
 async def _clasificar_angulos_con_ia(ads: list[dict], token: str) -> dict[str, str]:
@@ -244,9 +260,13 @@ async def strategy_overview(
         try:
             token_actual = client.meta_access_token
             clasificados = await _clasificar_angulos_con_ia(ads_sin_angulo, token_actual)
+            nuevos = False
             for ad_id, angulo_ia in clasificados.items():
                 if angulo_ia and angulo_ia != "Sin ángulo definido":
                     _angulo_cache[ad_id] = angulo_ia
+                    nuevos = True
+            if nuevos:
+                _save_cache(_angulo_cache)
 
             # Reubicar anuncios que fueron clasificados
             if clasificados:
@@ -301,6 +321,18 @@ async def strategy_overview(
         if hook_avg is not None and hook_avg < client.hook_rojo:
             señal_rotacion = "hook_bajo" if not señal_rotacion else "rotar_urgente"
 
+        # Estado del ángulo para la matriz visual
+        if señal_rotacion == "rotar_urgente":
+            estado_angulo = "critico"
+        elif señal_rotacion in ("cpmr_alto", "hook_bajo"):
+            estado_angulo = "atencion"
+        elif cpa_avg is not None and cpa_avg <= client.cpa_escalar:
+            estado_angulo = "escalar"
+        elif len(data["ads"]) == 0:
+            estado_angulo = "oportunidad"
+        else:
+            estado_angulo = "estable"
+
         ads_clean = [{k: v for k, v in a.items() if k != "_angulo_detectado"} for a in data["ads"]]
         biblioteca_list.append({
             "angulo":          angulo,
@@ -312,6 +344,7 @@ async def strategy_overview(
             "hook_rate_promedio": hook_avg,
             "ctr_promedio":    ctr_avg,
             "señal_rotacion":  señal_rotacion,
+            "estado_angulo":   estado_angulo,
             "ads":             ads_clean,
         })
 
@@ -333,6 +366,24 @@ async def strategy_overview(
         }
         for a in acciones
     ]
+
+    # Agregar ángulos del framework que no tienen ads activos (oportunidades)
+    angulos_en_uso = {b["angulo"] for b in biblioteca_list}
+    for angulo_framework in ANGULOS_FRAMEWORK:
+        if angulo_framework not in angulos_en_uso:
+            biblioteca_list.append({
+                "angulo":          angulo_framework,
+                "n_ads":           0,
+                "total_spend":     0,
+                "total_conv":      0,
+                "cpa_promedio":    None,
+                "cpmr_promedio":   None,
+                "hook_rate_promedio": None,
+                "ctr_promedio":    None,
+                "señal_rotacion":  None,
+                "estado_angulo":   "oportunidad",
+                "ads":             [],
+            })
 
     return {
         "days":            days,
@@ -405,7 +456,7 @@ Umbrales GEM 2026:
 - Fase aprendizaje: <50 conv/semana = rojo (consolidar en CBO). 50-100 = amarillo. >100 = verde.
 - Fatiga creativa: Frecuencia ≥3.0 = rojo. 2.0-2.9 = amarillo. <2.0 = verde.
 - Hook Rate: <15% = rojo (rotar urgente). 15-25% = amarillo. >25% = verde.
-- CPMr: >$5000 ARS = rojo (audiencia saturada). $3000-5000 = amarillo. <$3000 = verde.
+- CPMr: >$7000 ARS = rojo (fatiga/competencia alta). $3000-7000 = amarillo. <$3000 = verde (subastas muy económicas).
 - Escalamiento: Escalar máx +20% cada 3-4 días. Solo si CPA < objetivo y conv > 50/semana.
 - Diversidad: >60% mismo ángulo = rojo. 40-60% = amarillo. <40% = verde.
 

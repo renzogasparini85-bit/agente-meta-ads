@@ -6,6 +6,7 @@ import { PageLoading, ErrorState, Spinner } from '../components/LoadingState'
 import DateRangePicker from '../components/DateRangePicker'
 import CrearCampana from './CrearCampana'
 import { useAccount } from '../context/AccountContext'
+import { useAuth } from '../context/AuthContext'
 
 const badgeConfig = {
   escalar:          { label: 'Escalar',           icon: TrendingUp,    bg: 'bg-green-400/15      border-green-400/30',      text: 'text-green-400'   },
@@ -41,6 +42,28 @@ function Badge({ type }) {
       <Icon size={11} />
       {b.label}
     </span>
+  )
+}
+
+function ScoreRing({ score }) {
+  const r = 18
+  const circ = 2 * Math.PI * r
+  const filled = circ * (score / 100)
+  const color = score >= 75 ? '#4ade80' : score >= 50 ? '#facc15' : score >= 30 ? '#fb923c' : '#f87171'
+  const label = score >= 75 ? 'Escalable' : score >= 50 ? 'Mantener' : score >= 30 ? 'Optimizar' : 'Pausar'
+  return (
+    <div className="flex flex-col items-center gap-0.5 shrink-0">
+      <div className="relative w-12 h-12">
+        <svg width="48" height="48" className="-rotate-90">
+          <circle cx="24" cy="24" r={r} fill="none" stroke="#1e293b" strokeWidth="4" />
+          <circle cx="24" cy="24" r={r} fill="none" stroke={color} strokeWidth="4"
+            strokeDasharray={`${filled} ${circ}`} strokeLinecap="round"
+            style={{ transition: 'stroke-dasharray 0.6s ease' }} />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold" style={{ color }}>{score}</span>
+      </div>
+      <span className="text-[9px] font-medium" style={{ color }}>{label}</span>
+    </div>
   )
 }
 
@@ -581,6 +604,7 @@ function ModalReplicar({ ad, account, onClose, onDone }) {
 // ── Componente principal ──────────────────────────────────────────
 export default function Creativos() {
   const { selected: account } = useAccount()
+  const { client } = useAuth()
   const [tab, setTab] = useState('creativos')
   const [dateRange, setDateRange] = useState({ days: 30, since: null, until: null })
   const { data: creatives, loading, error, refetch } = useFetch(
@@ -643,6 +667,9 @@ export default function Creativos() {
   // Acciones prioritarias (badge) independientes del segmento
   const accionables = base?.filter(c => ['escalar','optimizar','retener'].includes(c.badge)) || []
 
+  const cpmr_verde = client?.cpmr_verde ?? 20000
+  const cpmr_rojo  = client?.cpmr_rojo  ?? 28000
+
   const cardProps = (c, i) => ({
     c, rank: i,
     expanded: expandedId === c.id,
@@ -651,6 +678,7 @@ export default function Creativos() {
     onEscalar: () => setModalEscalar(c),
     onReplicar: () => setModalReplicar(c),
     onVariacion: () => setModalVariacion(c),
+    cpmr_verde, cpmr_rojo,
   })
 
   return (
@@ -951,7 +979,7 @@ function Section({ title, subtitle, color, children }) {
 }
 
 // ── Tarjeta de creativo ───────────────────────────────────────────
-function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar, onReplicar, onVariacion }) {
+function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar, onReplicar, onVariacion, cpmr_verde = 20000, cpmr_rojo = 28000 }) {
   const canEscalar  = c.badge === 'escalar'
   const canReplicar = ['replicar','retener','escalar'].includes(c.badge)
   const canOptimizar = c.badge === 'optimizar'
@@ -980,10 +1008,13 @@ function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar
       {/* Cabecera */}
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-start justify-between mb-3">
-          <span className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0 mr-2 ${rank === 0 ? 'bg-orange-DEFAULT text-white' : 'bg-border text-slate-400'}`}>
-            {rank + 1}
-          </span>
-          <Badge type={c.badge} />
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${rank === 0 ? 'bg-orange-DEFAULT text-white' : 'bg-border text-slate-400'}`}>
+              {rank + 1}
+            </span>
+            <Badge type={c.badge} />
+          </div>
+          {c.health_score != null && <ScoreRing score={c.health_score} />}
         </div>
 
         {c.marca && (
@@ -1009,9 +1040,17 @@ function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar
           <p className="text-slate-400 text-xs mb-3 italic">Sin conversiones registradas</p>
         )}
 
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-2">
           <Metric label="CTR"   value={`${c.ctr}%`} good={c.ctr >= 3} warn={c.ctr >= 1.5} />
           <Metric label="Frec." value={c.frecuencia} warn={c.frecuencia > 2} bad={c.frecuencia > 2.5} />
+          <Metric
+            label="CPMr"
+            value={c.cpmr != null ? `$${Number(c.cpmr).toLocaleString('es-AR', { maximumFractionDigits: 0 })}` : '—'}
+            good={c.cpmr != null && c.cpmr <= cpmr_verde}
+            warn={c.cpmr != null && c.cpmr > cpmr_verde && c.cpmr <= cpmr_rojo}
+            bad={c.cpmr != null && c.cpmr > cpmr_rojo}
+            tooltip={`Costo por 1000 personas únicas alcanzadas. Verde < $${cpmr_verde.toLocaleString('es-AR')} · Rojo > $${cpmr_rojo.toLocaleString('es-AR')}`}
+          />
           <Metric
             label="ROAS"
             value={c.roas != null ? `${c.roas}x` : '—'}
@@ -1031,9 +1070,9 @@ function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar
         </div>
       </div>
 
-      {/* Consejo expandible */}
+      {/* Consejo + breakdown score expandible */}
       {expanded && (
-        <div className="px-4 pb-3">
+        <div className="px-4 pb-3 space-y-3">
           <div className={`text-xs rounded-lg px-3 py-2.5 leading-relaxed ${
             canEscalar ? 'bg-green-400/8 border border-green-400/15 text-green-400' :
             canReplicar ? 'bg-blue-400/8 border border-blue-400/15 text-blue-400' :
@@ -1042,6 +1081,31 @@ function CreativoCard({ c, rank, expanded, onExpand, onPause, pausing, onEscalar
           }`}>
             {badgeAdvice[c.badge]}
           </div>
+          {c.health_breakdown && (
+            <div className="bg-bg border border-border rounded-lg px-3 py-2.5">
+              <p className="text-slate-500 text-[10px] font-semibold uppercase tracking-wide mb-2">Desglose del score</p>
+              {[
+                { label: 'Hook Rate', key: 'hook_rate', max: 25 },
+                { label: 'CTR',       key: 'ctr',       max: 20 },
+                { label: 'CPMr',      key: 'cpmr',      max: 20 },
+                { label: 'CPA',       key: 'cpa',       max: 25 },
+                { label: 'Fatiga',    key: 'fatiga',     max: 10 },
+              ].map(({ label, key, max }) => {
+                const val = c.health_breakdown[key] ?? 0
+                const pct = (val / max) * 100
+                const col = pct >= 80 ? 'bg-green-400' : pct >= 40 ? 'bg-yellow-400' : 'bg-red-400'
+                return (
+                  <div key={key} className="flex items-center gap-2 mb-1.5">
+                    <span className="text-slate-400 text-[10px] w-16 shrink-0">{label}</span>
+                    <div className="flex-1 h-1.5 bg-border rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${col}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-slate-400 text-[10px] w-8 text-right">{val}/{max}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 

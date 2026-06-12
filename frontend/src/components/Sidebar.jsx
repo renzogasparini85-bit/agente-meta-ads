@@ -1,4 +1,4 @@
-import { LayoutDashboard, Megaphone, Image, TrendingUp, Bell, Sparkles, LogOut, Menu, X, Settings, Building2, ChevronDown, Plus, Leaf, BarChart2, Clock, Award, Globe, Target } from 'lucide-react'
+import { LayoutDashboard, Megaphone, Image, TrendingUp, Bell, Sparkles, LogOut, Menu, X, Settings, Building2, ChevronDown, Plus, Leaf, BarChart2, Clock, Award, Globe, Target, BookOpen, FlaskConical } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useAccount } from '../context/AccountContext'
@@ -19,6 +19,8 @@ const nav = [
   { id: 'alertas',         label: 'Alertas',             icon: Bell },
   { id: 'recomendaciones', label: 'IA Recomendaciones',  icon: Sparkles },
   { id: 'timeline',        label: 'Acciones',            icon: Clock },
+  { id: 'laboratorio',     label: 'Laboratorio',         icon: FlaskConical },
+  { id: 'guia',            label: 'Guía del sistema',    icon: BookOpen },
 ]
 
 const colorMap = {
