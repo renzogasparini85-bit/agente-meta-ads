@@ -3,6 +3,7 @@ import { Pause, PlusCircle, Copy, TrendingUp, Clock, CheckCircle, XCircle, Chevr
 import { actionLogAPI } from '../services/api'
 import { useFetch } from '../hooks/useFetch'
 import { PageLoading, ErrorState } from '../components/LoadingState'
+import { useAccount } from '../context/AccountContext'
 import api from '../services/api'
 
 const tipoConfig = {
@@ -27,7 +28,7 @@ const TIPOS_MANUAL = [
   { value: 'otro',            label: 'Otro' },
 ]
 
-function RegistrarModal({ onClose, onCreated }) {
+function RegistrarModal({ account, onClose, onCreated }) {
   const [form, setForm] = useState({ tipo: 'create_campaign', descripcion: '', meta_id: '' })
   const [saving, setSaving] = useState(false)
   const [campaigns, setCampaigns] = useState([])
@@ -35,8 +36,9 @@ function RegistrarModal({ onClose, onCreated }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   useEffect(() => {
-    api.get('/campaigns/names').then(r => setCampaigns(r.data || [])).catch(() => {}).finally(() => setLoadingCampaigns(false))
-  }, [])
+    const params = account?.id ? `?account_id=${encodeURIComponent(account.id)}` : ''
+    api.get(`/campaigns/names${params}`).then(r => setCampaigns(r.data || [])).catch(() => {}).finally(() => setLoadingCampaigns(false))
+  }, [account?.id])
 
   const handleSelectCampaign = (e) => {
     const selected = campaigns.find(c => c.id === e.target.value)
@@ -56,6 +58,7 @@ function RegistrarModal({ onClose, onCreated }) {
         tipo: form.tipo,
         descripcion: form.descripcion.trim(),
         meta_id: form.meta_id.trim() || null,
+        account_id: account?.id || null,
         resultado: 'ok',
       })
       onCreated(res.data)
@@ -215,6 +218,7 @@ function ImpactPanel({ logId }) {
 }
 
 export default function Timeline() {
+  const { selected: account } = useAccount()
   const { data, loading, error, refetch } = useFetch(() => actionLogAPI.list(100))
   const [expanded, setExpanded] = useState({})
   const [showModal, setShowModal] = useState(false)
@@ -243,6 +247,7 @@ export default function Timeline() {
     <div className="space-y-6">
       {showModal && (
         <RegistrarModal
+          account={account}
           onClose={() => setShowModal(false)}
           onCreated={log => setExtra(e => [log, ...e])}
         />

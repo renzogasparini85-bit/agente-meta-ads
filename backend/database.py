@@ -132,6 +132,7 @@ class ActionLog(Base):
     __tablename__ = "action_logs"
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, nullable=False)
+    account_id = Column(Integer, ForeignKey("ad_accounts.id"), nullable=True)
     tipo = Column(String, nullable=False)          # pause | budget_change | duplicate | create_campaign
     descripcion = Column(Text, nullable=False)
     meta_id = Column(String, nullable=True)

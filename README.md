@@ -206,3 +206,56 @@ agente-meta-ads/
 | `GA4_PROPERTY_ID` | Datos de Google Analytics 4 |
 | `TELEGRAM_BOT_TOKEN` | Notificaciones vía Telegram |
 | `FRONTEND_URL` | URL del frontend en producción (para CORS) |
+
+---
+
+## Despliegue en Railway
+
+El repositorio se despliega como dos servicios desde el mismo proyecto y una base PostgreSQL nueva.
+
+### 1. Crear servicios
+
+1. Crear un proyecto Railway desde este repositorio.
+2. Agregar un servicio PostgreSQL.
+3. Crear un servicio `backend` con Root Directory `/backend`.
+4. Crear un servicio `frontend` con Root Directory `/frontend`.
+
+Cada servicio detectará su propio `railway.toml`.
+
+### 2. Variables del backend
+
+```env
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+JWT_SECRET=un-string-largo-y-aleatorio
+SEED_EMAIL=tu-email
+SEED_PASSWORD=una-password-segura
+SEED_NOMBRE=tu-nombre
+META_ACCESS_TOKEN=...
+META_AD_ACCOUNT_ID=act_...
+META_APP_ID=...
+META_APP_SECRET=...
+ANTHROPIC_API_KEY=...
+FRONTEND_URL=https://tu-frontend.up.railway.app
+NOTIF_TIMEZONE=America/Argentina/Buenos_Aires
+```
+
+Variables opcionales para notificaciones:
+
+```env
+TELEGRAM_BOT_TOKEN=...
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASS=...
+SMTP_FROM=...
+```
+
+Al arrancar por primera vez, SQLAlchemy crea todas las tablas en PostgreSQL. El healthcheck está disponible en `/health`.
+
+### 3. Variables del frontend
+
+```env
+VITE_API_URL=https://tu-backend.up.railway.app
+```
+
+Generar un dominio público para cada servicio. Después de conocer el dominio del frontend, actualizar `FRONTEND_URL` en el backend y redesplegar ambos servicios.

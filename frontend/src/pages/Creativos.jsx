@@ -4,7 +4,6 @@ import { creativesAPI, campaignsAPI, recommendationsAPI, brandAPI, alertsAPI } f
 import { useFetch } from '../hooks/useFetch'
 import { PageLoading, ErrorState, Spinner } from '../components/LoadingState'
 import DateRangePicker from '../components/DateRangePicker'
-import CrearCampana from './CrearCampana'
 import { useAccount } from '../context/AccountContext'
 import { useAuth } from '../context/AuthContext'
 
@@ -100,7 +99,7 @@ const ANGULOS = [
   'Comparación antes/después',
 ]
 
-function ModalVariacionPaid({ ad, onClose, nombreCuenta }) {
+function ModalVariacionPaid({ ad, account, onClose, nombreCuenta }) {
   const [step, setStep]       = useState(1)
   const [formato, setFormato] = useState('imagen')
   const [angulo, setAngulo]   = useState(ANGULOS[0])
@@ -114,7 +113,12 @@ function ModalVariacionPaid({ ad, onClose, nombreCuenta }) {
     setError(null)
     try {
       let perfil = ''
-      try { const b = await brandAPI.get(account?.id); perfil = JSON.stringify(b) } catch (_) {}
+      try {
+        const brand = await brandAPI.get(account?.id)
+        perfil = JSON.stringify(brand)
+      } catch {
+        perfil = ''
+      }
       const contexto = [
         `Nombre del anuncio: ${ad.nombre || ''}`,
         ad.badge     ? `Clasificación actual: ${ad.badge}` : '',
@@ -454,8 +458,6 @@ function ModalReplicar({ ad, account, onClose, onDone }) {
       setLoading(false)
     }
   }
-
-  const STEPS = ['Copy', 'Imagen', 'Confirmar']
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 py-6 overflow-y-auto" onClick={onClose}>
@@ -798,7 +800,14 @@ export default function Creativos() {
 
           {modalEscalar   && <ModalEscalar   ad={modalEscalar}   onClose={() => setModalEscalar(null)} />}
           {modalReplicar  && <ModalReplicar  ad={modalReplicar} account={account} onClose={() => setModalReplicar(null)} onDone={() => { setModalReplicar(null); refetch() }} />}
-          {modalVariacion && <ModalVariacionPaid ad={modalVariacion} onClose={() => setModalVariacion(null)} nombreCuenta={account?.nombre || ''} />}
+          {modalVariacion && (
+            <ModalVariacionPaid
+              ad={modalVariacion}
+              account={account}
+              onClose={() => setModalVariacion(null)}
+              nombreCuenta={account?.nombre || ''}
+            />
+          )}
         </>
       )}
 

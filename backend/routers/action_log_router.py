@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timedelta
 import asyncio
+from services.action_impact import metrics_for_meta_entity
 
 router = APIRouter(prefix="/action-log", tags=["action-log"])
 
@@ -29,6 +30,7 @@ def list_action_log(
             "tipo":         l.tipo,
             "descripcion":  l.descripcion,
             "meta_id":      l.meta_id,
+            "account_id":   l.account_id,
             "resultado":    l.resultado,
             "ejecutado_en": l.ejecutado_en.isoformat() if l.ejecutado_en else None,
         }
@@ -40,6 +42,7 @@ class ActionLogCreate(BaseModel):
     tipo:        str            # pause | budget_change | create_campaign | duplicate | otro
     descripcion: str
     meta_id:     Optional[str] = None
+    account_id:  Optional[int] = None
     resultado:   str = "ok"
 
 
@@ -54,6 +57,7 @@ def create_action_log(
         tipo=body.tipo,
         descripcion=body.descripcion,
         meta_id=body.meta_id or None,
+        account_id=body.account_id,
         resultado=body.resultado,
     )
     db.add(log)
@@ -64,6 +68,7 @@ def create_action_log(
         "tipo":         log.tipo,
         "descripcion":  log.descripcion,
         "meta_id":      log.meta_id,
+        "account_id":   log.account_id,
         "resultado":    log.resultado,
         "ejecutado_en": log.ejecutado_en.isoformat() if log.ejecutado_en else None,
     }
@@ -111,10 +116,15 @@ async def get_action_impact(
     if dias_despues < 2:
         return {"available": False, "motivo": "Muy reciente — esperá al menos 2 días para medir impacto"}
 
-    account = db.query(AdAccount).filter(
+    account_query = db.query(AdAccount).filter(
         AdAccount.client_id == client.id,
         AdAccount.activo == True,
-    ).first()
+    )
+    account = (
+        account_query.filter(AdAccount.id == log.account_id).first()
+        if log.account_id
+        else account_query.order_by(AdAccount.creado_en).first()
+    )
     if not account:
         return {"available": False, "motivo": "Sin cuenta publicitaria activa"}
 
@@ -128,28 +138,6 @@ async def get_action_impact(
     after_since  = accion_dt.strftime(fmt)
     after_until  = min(now, accion_dt + timedelta(days=7)).strftime(fmt)
 
-    def _metricas(ads, meta_id):
-        filtrados = [
-            a for a in ads
-            if a.get("ad_id") == meta_id
-            or a.get("adset_id") == meta_id
-            or a.get("campaign_id") == meta_id
-        ]
-        if not filtrados:
-            filtrados = ads  # fallback: cuenta completa
-        spend = sum(float(a.get("spend") or 0) for a in filtrados)
-        conv  = sum(extract_conversions(a.get("actions", [])) for a in filtrados)
-        impr  = sum(float(a.get("impressions") or 0) for a in filtrados)
-        clicks = sum(float(a.get("clicks") or 0) for a in filtrados)
-        freq  = sum(float(a.get("frequency") or 0) for a in filtrados) / len(filtrados) if filtrados else 0
-        return {
-            "spend": round(spend, 2),
-            "conv":  conv,
-            "cpa":   round(spend / conv, 2) if conv > 0 else None,
-            "ctr":   round(clicks / impr * 100, 2) if impr > 0 else None,
-            "freq":  round(freq, 2),
-        }
-
     try:
         before_ads, after_ads = await asyncio.gather(
             get_ad_insights(account.meta_ad_account_id, token, since=before_since, until=before_until),
@@ -158,8 +146,13 @@ async def get_action_impact(
     except Exception as e:
         return {"available": False, "motivo": f"Error Meta API: {str(e)[:120]}"}
 
-    before = _metricas(before_ads, log.meta_id)
-    after  = _metricas(after_ads,  log.meta_id)
+    before = metrics_for_meta_entity(before_ads, log.meta_id, extract_conversions)
+    after = metrics_for_meta_entity(after_ads, log.meta_id, extract_conversions)
+    if before is None or after is None:
+        return {
+            "available": False,
+            "motivo": "El ID de Meta no aparece en ambos períodos para esta cuenta",
+        }
 
     def _delta(b, a):
         if b is None or a is None or b == 0:

@@ -2,8 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os, asyncio, logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from services.notification_schedule import should_notify_client
 
 load_dotenv()
 
@@ -85,16 +88,15 @@ def shutdown():
 
 
 def _start_scheduler():
-    """Inicia el cron de alertas diarias. Hora configurable vía NOTIF_HORA_UTC (default 12 UTC)."""
-    hora_utc = int(os.getenv("NOTIF_HORA_UTC", "12"))
+    """Ejecuta el job cada hora; cada cliente conserva su horario local."""
     scheduler.add_job(
         _job_alertas_diarias,
-        CronTrigger(hour=hora_utc, minute=0),
+        CronTrigger(minute=0),
         id="alertas_diarias",
         replace_existing=True,
     )
     scheduler.start()
-    logger.info(f"Scheduler iniciado — alertas diarias a las {hora_utc}:00 UTC")
+    logger.info("Scheduler iniciado — evaluación de alertas cada hora")
 
 
 async def _job_alertas_diarias():
@@ -111,12 +113,15 @@ async def _job_alertas_diarias():
 
     db = SessionLocal()
     try:
+        timezone_name = os.getenv("NOTIF_TIMEZONE", "America/Argentina/Buenos_Aires")
+        local_hour = datetime.now(ZoneInfo(timezone_name)).hour
         clientes = db.query(Client).filter(
             Client.activo == True,
             Client.notif_diaria_activa == True,
         ).all()
+        clientes = [client for client in clientes if should_notify_client(client, local_hour)]
 
-        logger.info(f"[Cron alertas] {len(clientes)} cliente(s) con notificaciones activas")
+        logger.info(f"[Cron alertas] {len(clientes)} cliente(s) programados para las {local_hour}:00")
 
         for client in clientes:
             tiene_telegram = bool(client.telegram_chat_id)
