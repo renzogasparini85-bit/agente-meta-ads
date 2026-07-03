@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from database import Client, AdAccount, get_db
 from auth import get_current_client
 from routers.account_resolver import resolve_account
+from routers.ad_accounts import normalize_meta_social_id
 from services.demo_organic import demo_organic
 from services.meta_api import meta_get
 import json
@@ -251,8 +252,8 @@ async def save_organic_config(
     ).first()
     if not acc:
         raise HTTPException(status_code=404, detail="Cuenta no encontrada")
-    if page_id: acc.meta_page_id       = page_id
-    if ig_id:   acc.meta_ig_account_id = ig_id
+    if page_id: acc.meta_page_id       = normalize_meta_social_id(page_id)
+    if ig_id:   acc.meta_ig_account_id = normalize_meta_social_id(ig_id)
     db.commit()
     return {"ok": True}
 

@@ -157,6 +157,11 @@ export const brandAPI = {
   },
 }
 
+export const clientsAPI = {
+  getMeta: () => api.get('/clients/me/meta').then(r => r.data),
+  updateMeta: (data) => api.put('/clients/me/meta', data).then(r => r.data),
+}
+
 export const recommendationsAPI = {
   list: () => api.get('/recommendations').then((r) => r.data),
   generate: (days = 30, accountId = null) => {

@@ -36,7 +36,19 @@ function AccountSelector({ onManage }) {
   const { accounts, selected, setSelected } = useAccount()
   const [open, setOpen] = useState(false)
 
-  if (!selected) return null
+  if (!selected) {
+    return (
+      <div className="px-3 pb-2">
+        <button
+          onClick={onManage}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-bg border border-violet-DEFAULT/30 text-violet-glow hover:bg-violet-DEFAULT/10 transition-colors cursor-pointer text-xs font-medium"
+        >
+          <Plus size={12} />
+          Gestionar cuentas
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="px-3 pb-2">
@@ -81,20 +93,13 @@ function AccountSelector({ onManage }) {
   )
 }
 
-export default function Sidebar({ active, onNavigate }) {
-  const [open, setOpen]           = useState(false)
-  const [showConfig, setShowConfig] = useState(false)
-  const [showMarca, setShowMarca]   = useState(false)
-  const [showCuentas, setShowCuentas] = useState(false)
-  const [showPixel, setShowPixel]   = useState(false)
-  const { client, logout }        = useAuth()
-
-  const NavLinks = () => (
+function NavLinks({ active, onNavigate, onAfterNavigate }) {
+  return (
     <>
       {nav.map(({ id, label, icon: Icon, badge }) => (
         <button
           key={id}
-          onClick={() => { onNavigate(id); setOpen(false) }}
+          onClick={() => { onNavigate(id); onAfterNavigate?.() }}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
             active === id
               ? 'bg-violet-DEFAULT/20 text-violet-glow border border-violet-DEFAULT/30 glow-violet'
@@ -112,6 +117,15 @@ export default function Sidebar({ active, onNavigate }) {
       ))}
     </>
   )
+}
+
+export default function Sidebar({ active, onNavigate }) {
+  const [open, setOpen]           = useState(false)
+  const [showConfig, setShowConfig] = useState(false)
+  const [showMarca, setShowMarca]   = useState(false)
+  const [showCuentas, setShowCuentas] = useState(false)
+  const [showPixel, setShowPixel]   = useState(false)
+  const { client, logout }        = useAuth()
 
   return (
     <>
@@ -132,8 +146,12 @@ export default function Sidebar({ active, onNavigate }) {
       {open && (
         <div className="md:hidden fixed inset-0 z-40 bg-black/60" onClick={() => setOpen(false)}>
           <div className="absolute left-0 top-0 bottom-0 w-64 bg-surface border-r border-border flex flex-col pt-16" onClick={e => e.stopPropagation()}>
+            <div className="pt-3">
+              <p className="text-slate-400 text-xs px-6 mb-1.5 font-medium uppercase tracking-wide">Cuenta activa</p>
+              <AccountSelector onManage={() => { setShowCuentas(true); setOpen(false) }} />
+            </div>
             <nav className="flex-1 flex flex-col gap-1 px-4 py-4 overflow-y-auto">
-              <NavLinks />
+              <NavLinks active={active} onNavigate={onNavigate} onAfterNavigate={() => setOpen(false)} />
             </nav>
           </div>
         </div>
@@ -161,7 +179,7 @@ export default function Sidebar({ active, onNavigate }) {
         {/* Nav */}
         <nav className="flex-1 flex flex-col px-3 py-2 overflow-y-auto min-h-0">
           <div className="flex flex-col gap-1">
-            <NavLinks />
+            <NavLinks active={active} onNavigate={onNavigate} />
           </div>
           <div className="mt-auto pt-2 border-t border-border/50 shrink-0">
             <button

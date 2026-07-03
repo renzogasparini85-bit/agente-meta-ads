@@ -3,6 +3,7 @@ import { X, Settings, Save, Check, TrendingUp, MessageCircle, Key, RefreshCw, Ex
 import { useAuth } from '../context/AuthContext'
 import { useAccount } from '../context/AccountContext'
 import api from '../services/api'
+import { clientsAPI } from '../services/api'
 
 const MONEDAS = [
   { value: 'ARS', label: 'ARS — Peso Argentino' },
@@ -47,6 +48,22 @@ export default function Configuracion({ onClose }) {
   const [calibrating, setCalibrating] = useState(false)
   const [calibPreview, setCalibPreview] = useState(null) // { cpmr_verde, cpmr_rojo, motivo, fuente, n_ads }
 
+  const [notif, setNotif] = useState({ telegram_chat_id: '', notif_email: '', notif_diaria_activa: false, notif_hora: 9, telegram_configurado: false, email_configurado: false })
+  const [savingNotif, setSavingNotif] = useState(false)
+  const [savedNotif, setSavedNotif] = useState(false)
+  const [sendingTest, setSendingTest] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+
+  const [tokenCorto, setTokenCorto] = useState('')
+  const [savingToken, setSavingToken] = useState(false)
+  const [savedToken, setSavedToken] = useState(null) // { expires_days }
+  const [errorToken, setErrorToken] = useState(null)
+  const [metaForm, setMetaForm] = useState({ meta_access_token: '', meta_ad_account_id: '' })
+  const [metaStatus, setMetaStatus] = useState(null)
+  const [savingMeta, setSavingMeta] = useState(false)
+  const [savedMeta, setSavedMeta] = useState(false)
+  const [errorMeta, setErrorMeta] = useState(null)
+
   // Fetch fresh settings from server on mount to get accurate GEM thresholds
   useEffect(() => {
     api.get('/clients/me/settings').then(res => {
@@ -78,17 +95,12 @@ export default function Configuracion({ onClose }) {
     api.get('/alerts/notify-config').then(res => {
       setNotif(res.data)
     }).catch(() => {})
-  }, [])
-  const [notif, setNotif] = useState({ telegram_chat_id: '', notif_email: '', notif_diaria_activa: false, notif_hora: 9, telegram_configurado: false, email_configurado: false })
-  const [savingNotif, setSavingNotif] = useState(false)
-  const [savedNotif, setSavedNotif] = useState(false)
-  const [sendingTest, setSendingTest] = useState(false)
-  const [testResult, setTestResult] = useState(null)
 
-  const [tokenCorto, setTokenCorto] = useState('')
-  const [savingToken, setSavingToken] = useState(false)
-  const [savedToken, setSavedToken] = useState(null) // { expires_days }
-  const [errorToken, setErrorToken] = useState(null)
+    clientsAPI.getMeta().then(data => {
+      setMetaStatus(data)
+      setMetaForm(f => ({ ...f, meta_ad_account_id: data.meta_ad_account_id || '' }))
+    }).catch(() => {})
+  }, [])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -237,10 +249,41 @@ export default function Configuracion({ onClose }) {
       const res = await api.post(`/auth/meta/exchange-token?short_token=${encodeURIComponent(tokenCorto.trim())}`)
       setSavedToken(res.data)
       setTokenCorto('')
+      const meta = await clientsAPI.getMeta()
+      setMetaStatus(meta)
     } catch (e) {
       setErrorToken(e?.response?.data?.detail || 'Error al procesar el token')
     } finally {
       setSavingToken(false)
+    }
+  }
+
+  const handleSaveMeta = async () => {
+    if (!metaForm.meta_access_token.trim() && !metaForm.meta_ad_account_id.trim()) {
+      setErrorMeta('Pegá un token o un Ad Account ID para guardar')
+      return
+    }
+    setSavingMeta(true)
+    setSavedMeta(false)
+    setErrorMeta(null)
+    try {
+      const payload = {
+        meta_access_token: metaForm.meta_access_token.trim() || undefined,
+        meta_ad_account_id: metaForm.meta_ad_account_id.trim() || undefined,
+      }
+      const res = await clientsAPI.updateMeta(payload)
+      setMetaStatus(res)
+      setMetaForm(f => ({
+        ...f,
+        meta_access_token: '',
+        meta_ad_account_id: res.meta_ad_account_id || f.meta_ad_account_id,
+      }))
+      setSavedMeta(true)
+      setTimeout(() => setSavedMeta(false), 2500)
+    } catch (e) {
+      setErrorMeta(e?.response?.data?.detail || 'Error al guardar credenciales Meta')
+    } finally {
+      setSavingMeta(false)
     }
   }
 
@@ -699,7 +742,57 @@ export default function Configuracion({ onClose }) {
           {tab === 'token' && (
             <>
               <div className="bg-violet-DEFAULT/5 border border-violet-DEFAULT/15 rounded-xl px-4 py-3">
-                <p className="text-white text-xs font-semibold mb-1">¿Cómo renovar el token?</p>
+                <p className="text-white text-xs font-semibold mb-1">Credenciales Meta guardadas en la app</p>
+                <p className="text-slate-400 text-xs leading-relaxed">
+                  Estado: <span className={metaStatus?.meta_configured ? 'text-green-400' : 'text-yellow-400'}>
+                    {metaStatus?.meta_configured ? 'configurado' : 'incompleto'}
+                  </span>
+                  {metaStatus?.token_preview ? ` · token ${metaStatus.token_preview}` : ''}
+                </p>
+              </div>
+
+              <div>
+                <label className="text-slate-400 text-xs font-medium mb-1.5 block">Ad Account ID principal</label>
+                <input
+                  value={metaForm.meta_ad_account_id}
+                  onChange={e => setMetaForm(f => ({ ...f, meta_ad_account_id: e.target.value }))}
+                  placeholder="act_1234567890"
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-violet-DEFAULT/60 transition-colors"
+                />
+                <p className="text-slate-500 text-[10px] mt-1">Podés pegarlo con o sin prefijo act_.</p>
+              </div>
+
+              <div>
+                <label className="text-slate-400 text-xs font-medium mb-1.5 block">Token Meta operativo</label>
+                <textarea
+                  value={metaForm.meta_access_token}
+                  onChange={e => setMetaForm(f => ({ ...f, meta_access_token: e.target.value }))}
+                  placeholder="Pegá un token largo o de sistema. Dejalo vacío para conservar el actual."
+                  rows={3}
+                  className="w-full bg-bg border border-border rounded-lg px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-violet-DEFAULT/60 transition-colors resize-none"
+                />
+              </div>
+
+              {errorMeta && (
+                <p className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{errorMeta}</p>
+              )}
+              {savedMeta && (
+                <p className="text-green-400 text-xs bg-green-400/10 border border-green-400/20 rounded-lg px-3 py-2">Credenciales Meta guardadas</p>
+              )}
+
+              <button
+                onClick={handleSaveMeta}
+                disabled={savingMeta || (!metaForm.meta_access_token.trim() && !metaForm.meta_ad_account_id.trim())}
+                className="w-full flex items-center justify-center gap-2 bg-violet-DEFAULT text-white font-semibold py-2.5 rounded-lg hover:opacity-90 disabled:opacity-40 cursor-pointer transition-opacity glow-violet text-sm"
+              >
+                {savingMeta
+                  ? <><RefreshCw size={15} className="animate-spin" /> Guardando...</>
+                  : <><Save size={15} /> Guardar credenciales Meta</>
+                }
+              </button>
+
+              <div className="bg-bg/70 border border-border rounded-xl px-4 py-3">
+                <p className="text-white text-xs font-semibold mb-1">Intercambiar token corto</p>
                 <ol className="text-slate-400 text-xs leading-relaxed space-y-1 list-decimal list-inside">
                   <li>Abrí el <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noreferrer" className="text-violet-400 hover:underline inline-flex items-center gap-1">Graph API Explorer <ExternalLink size={10} /></a></li>
                   <li>Seleccioná tu app y hacé clic en <strong className="text-white">Generate Access Token</strong></li>
@@ -708,7 +801,7 @@ export default function Configuracion({ onClose }) {
               </div>
 
               <div>
-                <label className="text-slate-400 text-xs font-medium mb-1.5 block">Token de Meta (corto o largo)</label>
+                <label className="text-slate-400 text-xs font-medium mb-1.5 block">Token corto de Meta</label>
                 <textarea
                   value={tokenCorto}
                   onChange={e => setTokenCorto(e.target.value)}
@@ -742,7 +835,7 @@ export default function Configuracion({ onClose }) {
               >
                 {savingToken
                   ? <><RefreshCw size={15} className="animate-spin" /> Procesando...</>
-                  : <><Key size={15} /> Guardar token</>
+                  : <><Key size={15} /> Intercambiar y guardar token</>
                 }
               </button>
             </>

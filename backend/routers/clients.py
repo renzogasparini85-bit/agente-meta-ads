@@ -31,6 +31,11 @@ class UpdateTokenRequest(BaseModel):
     meta_access_token: str
 
 
+class MetaCredentialsRequest(BaseModel):
+    meta_access_token: str = None
+    meta_ad_account_id: str = None
+
+
 class UpdateSettingsRequest(BaseModel):
     moneda: str = None
     cpa_escalar: float = None
@@ -85,6 +90,69 @@ def _resolve_account(client: Client, account_id, db: Session):
         return db.query(AdAccount).filter_by(id=row_id, client_id=client.id, activo=True).first()
     except (ValueError, TypeError):
         return None
+
+
+def normalize_meta_account_id(account_id: str | None) -> str | None:
+    account_id = (account_id or "").strip()
+    if not account_id:
+        return None
+    return account_id if account_id.startswith("act_") else f"act_{account_id}"
+
+
+def _token_preview(token: str | None) -> str | None:
+    token = token or ""
+    if not token:
+        return None
+    if len(token) <= 12:
+        return "••••"
+    return f"{token[:6]}...{token[-4:]}"
+
+
+@router.get("/me/meta")
+def get_my_meta(client: Client = Depends(get_current_client)):
+    return {
+        "meta_configured": bool(client.meta_access_token and client.meta_ad_account_id),
+        "has_token": bool(client.meta_access_token),
+        "token_preview": _token_preview(client.meta_access_token),
+        "meta_ad_account_id": client.meta_ad_account_id or "",
+    }
+
+
+@router.put("/me/meta")
+def update_my_meta(
+    body: MetaCredentialsRequest,
+    client: Client = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    if body.meta_access_token is not None:
+        client.meta_access_token = body.meta_access_token.strip()
+
+    account_id = normalize_meta_account_id(body.meta_ad_account_id)
+    if body.meta_ad_account_id is not None:
+        client.meta_ad_account_id = account_id or ""
+
+    if account_id:
+        existing_accounts = db.query(AdAccount).filter(
+            AdAccount.client_id == client.id,
+            AdAccount.meta_ad_account_id == account_id,
+        ).count()
+        if existing_accounts == 0:
+            db.add(AdAccount(
+                client_id=client.id,
+                nombre=f"Cuenta {account_id}",
+                meta_ad_account_id=account_id,
+                moneda=client.moneda or "ARS",
+                color="violet",
+            ))
+
+    db.commit()
+    return {
+        "ok": True,
+        "meta_configured": bool(client.meta_access_token and client.meta_ad_account_id),
+        "has_token": bool(client.meta_access_token),
+        "token_preview": _token_preview(client.meta_access_token),
+        "meta_ad_account_id": client.meta_ad_account_id or "",
+    }
 
 
 @router.get("/me/brand")

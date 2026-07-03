@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, Plus, Trash2, Settings, Check, Loader2, ChevronDown, ChevronUp, RefreshCw, Download } from 'lucide-react'
-import { adAccountsAPI, metaOAuthAPI } from '../services/api'
+import { adAccountsAPI, clientsAPI, metaOAuthAPI } from '../services/api'
 import { useAccount } from '../context/AccountContext'
 
 const COLORES = [
@@ -273,7 +273,12 @@ function EditPanel({ acc, onSaved, onCancel }) {
           {pages && (
             <div className="bg-bg border border-border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
               {pages.length === 0 ? (
-                <p className="text-slate-500 text-xs text-center py-3">No se encontraron páginas</p>
+                <div className="px-3 py-3 text-center">
+                  <p className="text-slate-400 text-xs">No se encontraron páginas accesibles con este token.</p>
+                  <p className="text-slate-500 text-[10px] mt-1">
+                    Si la página existe, pegá los IDs manualmente o usá un token de usuario con permisos de páginas.
+                  </p>
+                </div>
               ) : pages.map(p => (
                 <button key={p.page_id} onClick={() => seleccionarPagina(p)}
                   className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-surface cursor-pointer transition-colors border-b border-border last:border-0 text-left">
@@ -408,6 +413,90 @@ function ImportarDesdeMeta({ onImported }) {
 }
 
 // ─── Renovar token Meta ───────────────────────────────────────────────────────
+function CredencialesMeta({ onSaved }) {
+  const [form, setForm] = useState({ meta_access_token: '', meta_ad_account_id: '' })
+  const [status, setStatus] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    clientsAPI.getMeta().then(data => {
+      setStatus(data)
+      setForm(f => ({ ...f, meta_ad_account_id: data.meta_ad_account_id || '' }))
+    }).catch(() => {})
+  }, [])
+
+  const save = async () => {
+    if (!form.meta_access_token.trim() && !form.meta_ad_account_id.trim()) {
+      setError('Pegá un token o un Ad Account ID')
+      return
+    }
+    setSaving(true)
+    setSaved(false)
+    setError(null)
+    try {
+      const res = await clientsAPI.updateMeta({
+        meta_access_token: form.meta_access_token.trim() || undefined,
+        meta_ad_account_id: form.meta_ad_account_id.trim() || undefined,
+      })
+      setStatus(res)
+      setForm(f => ({ ...f, meta_access_token: '', meta_ad_account_id: res.meta_ad_account_id || f.meta_ad_account_id }))
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+      onSaved?.()
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'Error al guardar credenciales')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="border border-violet-DEFAULT/30 bg-violet-DEFAULT/5 rounded-xl p-4 space-y-3">
+      <div>
+        <p className="text-white text-xs font-semibold">Credenciales Meta</p>
+        <p className="text-slate-500 text-[10px] mt-0.5">
+          Estado: <span className={status?.meta_configured ? 'text-green-400' : 'text-yellow-400'}>
+            {status?.meta_configured ? 'configurado' : 'incompleto'}
+          </span>
+          {status?.token_preview ? ` · token ${status.token_preview}` : ''}
+        </p>
+      </div>
+
+      <div>
+        <label className={labelCls}>Ad Account ID principal</label>
+        <input
+          value={form.meta_ad_account_id}
+          onChange={e => setForm(f => ({ ...f, meta_ad_account_id: e.target.value }))}
+          placeholder="act_1234567890"
+          className={inputCls}
+        />
+      </div>
+
+      <div>
+        <label className={labelCls}>Token Meta operativo</label>
+        <textarea
+          value={form.meta_access_token}
+          onChange={e => setForm(f => ({ ...f, meta_access_token: e.target.value }))}
+          placeholder="Pegá token largo o de sistema. Vacío conserva el actual."
+          rows={3}
+          className={`${inputCls} resize-none font-mono text-xs`}
+        />
+      </div>
+
+      {error && <p className="text-red-400 text-xs">{error}</p>}
+      {saved && <p className="text-green-400 text-xs flex items-center gap-1"><Check size={11} /> Credenciales guardadas</p>}
+
+      <button onClick={save} disabled={saving || (!form.meta_access_token.trim() && !form.meta_ad_account_id.trim())}
+        className="w-full flex items-center justify-center gap-2 py-2 bg-violet-DEFAULT hover:opacity-90 disabled:opacity-40 rounded-lg text-white text-xs font-medium cursor-pointer transition-opacity">
+        {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+        {saving ? 'Guardando...' : 'Guardar credenciales'}
+      </button>
+    </div>
+  )
+}
+
 function RenovarToken({ onRenewed }) {
   const [open, setOpen]     = useState(false)
   const [token, setToken]   = useState('')
@@ -565,6 +654,7 @@ export default function GestionCuentas({ onClose }) {
             </div>
           ))}
 
+          <CredencialesMeta onSaved={reload} />
           <RenovarToken onRenewed={reload} />
           <ImportarDesdeMeta onImported={reload} />
 

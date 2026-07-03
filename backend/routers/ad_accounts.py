@@ -10,6 +10,11 @@ router = APIRouter(prefix="/ad-accounts", tags=["ad_accounts"])
 COLORES = {"violet", "orange", "green", "blue", "cyan", "red"}
 
 
+def normalize_meta_social_id(value: str | None) -> str | None:
+    digits = "".join(ch for ch in (value or "").strip() if ch.isdigit())
+    return digits or None
+
+
 class AdAccountCreate(BaseModel):
     nombre: str
     meta_ad_account_id: str
@@ -97,8 +102,8 @@ def update_account(
     if body.moneda             is not None: acc.moneda             = body.moneda
     if body.color              is not None: acc.color              = body.color if body.color in COLORES else acc.color
     if body.activo             is not None: acc.activo             = body.activo
-    if body.meta_page_id       is not None: acc.meta_page_id       = body.meta_page_id or None
-    if body.meta_ig_account_id is not None: acc.meta_ig_account_id = body.meta_ig_account_id or None
+    if body.meta_page_id       is not None: acc.meta_page_id       = normalize_meta_social_id(body.meta_page_id)
+    if body.meta_ig_account_id is not None: acc.meta_ig_account_id = normalize_meta_social_id(body.meta_ig_account_id)
     if body.campaign_filter    is not None: acc.campaign_filter    = body.campaign_filter or None
     db.commit()
     return {"ok": True}
