@@ -41,7 +41,11 @@ app = FastAPI(title="Meta Ads AI — Backend", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:4173", os.getenv("FRONTEND_URL", "")],
+    allow_origins=[
+        "http://localhost:5173", "http://localhost:5174", "http://localhost:4173",
+        "https://frontend-production-1135.up.railway.app",
+        *[o for o in [os.getenv("FRONTEND_URL", ""), os.getenv("FRONTEND_URL_2", "")] if o],
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
