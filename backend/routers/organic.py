@@ -138,7 +138,7 @@ async def _fetch_ig_posts(ig_id: str, token: str, since_str: str, until_str: str
         )
     except Exception as e:
         print(f"[organic] IG error ig_id={ig_id}: {e}")
-        return []
+        raise
 
     posts = []
     for m in data.get("data", []):
@@ -224,7 +224,10 @@ async def organic_posts(
     ig_task = _fetch_ig_posts(ig_id, token, since_str, until_str, page_id=page_id) if ig_id and plataforma != "facebook" else _empty()
 
 
-    fb_posts, ig_posts = await asyncio.gather(fb_task, ig_task)
+    try:
+        fb_posts, ig_posts = await asyncio.gather(fb_task, ig_task)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Error Meta API orgánico: {str(e)}")
     print(f"[organic] fb_posts={len(fb_posts)} ig_posts={len(ig_posts)}")
     posts = fb_posts + ig_posts
 
